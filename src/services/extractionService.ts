@@ -60,34 +60,49 @@ export class ExtractionService {
     const startTime = Date.now();
 
     try {
+      // 🔧 OPTIMIZATION: Only use discovery prompt when discovery mode is explicitly enabled
       const prompt = discoveryMode 
         ? this.promptService.generateDiscoveryPrompt(schema, categoryName)
         : (categoryName 
             ? this.promptService.generateCategorySpecificPrompt(schema, categoryName)
             : this.promptService.generateGenericPrompt(schema));
 
+      console.log(`🔍 API Call - Discovery Mode: ${discoveryMode}, Prompt Length: ${prompt.length} chars`);
+      
       const apiResponse = await this.apiService.callVisionAPI(base64Image, prompt);
       
       let attributes: AttributeData;
       let discoveries: DiscoveredAttribute[] = [];
 
       if (discoveryMode) {
+        // Only parse enhanced response when discovery is enabled
         const result = await this.responseParser.parseEnhancedResponse(apiResponse.content, schema);
         attributes = result.attributes;
         discoveries = result.discoveries;
+        console.log(`✨ Discovery Results: ${discoveries.length} discoveries found`);
       } else {
+        // Use lightweight parsing for basic extraction
         attributes = await this.responseParser.parseResponse(apiResponse.content, schema);
+        console.log(`⚡ Basic Extraction: ${Object.keys(attributes).length} attributes extracted`);
       }
 
       const processingTime = Date.now() - startTime;
       const confidence = this.calculateOverallConfidence(attributes);
 
-      const discoveryStats = {
+      // 🔧 OPTIMIZATION: Only calculate discovery stats when discoveries exist
+      const discoveryStats = discoveryMode && discoveries.length > 0 ? {
         totalFound: discoveries.length,
         highConfidence: discoveries.filter(d => d.confidence >= 80).length,
         schemaPromotable: discoveries.filter(d => d.isPromotable).length,
         uniqueKeys: new Set(discoveries.map(d => d.key)).size
+      } : {
+        totalFound: 0,
+        highConfidence: 0,
+        schemaPromotable: 0,
+        uniqueKeys: 0
       };
+
+      console.log(`⏱️ Processing Complete - Time: ${processingTime}ms, Tokens: ${apiResponse.tokensUsed}, Confidence: ${confidence}%`);
 
       return {
         attributes,
@@ -95,7 +110,7 @@ export class ExtractionService {
         modelUsed: apiResponse.modelUsed,
         processingTime,
         confidence,
-        discoveries,
+        discoveries: discoveryMode ? discoveries : [], // Only return discoveries when enabled
         discoveryStats
       };
     } catch (error) {

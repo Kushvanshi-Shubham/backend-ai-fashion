@@ -94,20 +94,15 @@ export class ExtractionController {
         return;
       }
 
-      // Extract attributes
-      const result = discoveryMode
-        ? await this.extractionService.extractWithDiscovery(
-            image,
-            schema,
-            categoryName,
-            true
-          )
-        : await this.extractionService.extractAttributes(
-            image,
-            schema,
-            customPrompt,
-            categoryName
-          );
+      // 🔧 OPTIMIZED: Use single method with discovery flag for consistency
+      console.log(`🔍 Extraction Request - Discovery Mode: ${discoveryMode}, Schema Items: ${schema.length}`);
+      
+      const result = await this.extractionService.extractWithDiscovery(
+        image,
+        schema,
+        categoryName,
+        discoveryMode || false // Ensure boolean, default to false
+      );
 
       console.log('✅ Extraction successful, sending result with attributes:', Object.keys(result.attributes).length);
       console.log('📊 Sample attribute data:', Object.entries(result.attributes).slice(0, 2));
