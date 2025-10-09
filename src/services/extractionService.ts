@@ -55,19 +55,19 @@ export class ExtractionService {
     base64Image: string,
     schema: SchemaItem[],
     categoryName?: string,
-    discoveryMode = false
+    discoveryMode = false,
+    department?: string,
+    subDepartment?: string
   ): Promise<EnhancedExtractionResult> {
     const startTime = Date.now();
 
     try {
-      // 🔧 OPTIMIZATION: Only use discovery prompt when discovery mode is explicitly enabled
+      // � TOKEN OPTIMIZATION: Use schema-driven prompts with department context
       const prompt = discoveryMode 
         ? this.promptService.generateDiscoveryPrompt(schema, categoryName)
-        : (categoryName 
-            ? this.promptService.generateCategorySpecificPrompt(schema, categoryName)
-            : this.promptService.generateGenericPrompt(schema));
+        : this.promptService.generateOptimizedPrompt(schema, categoryName, department, subDepartment);
 
-      console.log(`🔍 API Call - Discovery Mode: ${discoveryMode}, Prompt Length: ${prompt.length} chars`);
+      console.log(`🔍 Optimized API Call - Discovery: ${discoveryMode}, Prompt: ${prompt.length} chars, Schema: ${schema.length} attrs`);
       
       const apiResponse = await this.apiService.callVisionAPI(base64Image, prompt);
       

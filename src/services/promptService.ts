@@ -1,6 +1,22 @@
 import type { SchemaItem, AllowedValue } from '../types/extraction';
 
 export class PromptService {
+  // 🚀 NEW: Token-optimized schema-driven prompt generation
+  generateOptimizedPrompt(
+    schema: SchemaItem[], 
+    categoryName?: string, 
+    department?: string, 
+    subDepartment?: string
+  ): string {
+    const tokenBudget = this.calculateTokenBudget(schema.length);
+    const categoryContext = this.getCategorySpecificContext(department, subDepartment, categoryName);
+    
+    // Compress schema based on token budget
+    const optimizedSchema = this.compressSchemaForTokens(schema, tokenBudget);
+    
+    return this.buildOptimizedPrompt(optimizedSchema, categoryContext, tokenBudget);
+  }
+
   // ✅ Original method for v1.0, enhanced for allowedValues objects and fullForm
   generateGenericPrompt(schema: SchemaItem[]): string {
     const attributeDescriptions = schema
@@ -204,5 +220,107 @@ Focus on commercially valuable attributes that fashion professionals would find 
     };
 
     return contexts[categoryName] || 'Analyze all visible fashion attributes systematically.';
+  }
+
+  // 🚀 TOKEN OPTIMIZATION METHODS
+
+  private calculateTokenBudget(schemaLength: number): 'minimal' | 'standard' | 'extended' {
+    if (schemaLength <= 5) return 'minimal';    // ~1500 tokens
+    if (schemaLength <= 12) return 'standard';  // ~2500 tokens  
+    return 'extended';                          // ~3500 tokens
+  }
+
+  private getCategorySpecificContext(
+    department?: string, 
+    subDepartment?: string, 
+    categoryName?: string
+  ): string {
+    const contextKey = `${department}_${subDepartment}_${categoryName}`.toLowerCase();
+    
+    const contexts: Record<string, string> = {
+      // Kids department contexts
+      'kids_bottoms_bermuda': 'Focus: comfort, safety features, adjustable waistbands, durable materials',
+      'kids_tops_tshirt': 'Focus: soft fabrics, easy care, fun prints, comfortable fit',
+      
+      // Ladies department contexts  
+      'ladies_bottoms_cigarette_pant': 'Focus: professional fit, fabric drape, tailored construction',
+      'ladies_tops_blouse': 'Focus: elegant details, fabric quality, professional styling',
+      
+      // Mens department contexts
+      'mens_tops_tshirt': 'Focus: fit type, fabric weight, construction quality, style details',
+      'mens_bottoms_jeans': 'Focus: wash treatment, fit type, construction, hardware quality'
+    };
+
+    return contexts[contextKey] || this.getCategoryContext(categoryName || '');
+  }
+
+  private compressSchemaForTokens(schema: SchemaItem[], budget: 'minimal' | 'standard' | 'extended'): SchemaItem[] {
+    if (budget === 'minimal') {
+      // Keep only essential attributes, compress descriptions
+      return schema.slice(0, 5).map(item => ({
+        ...item,
+        label: item.label.length > 20 ? item.label.substring(0, 20) + '...' : item.label,
+        allowedValues: item.allowedValues?.slice(0, 3) // Limit allowed values
+      }));
+    }
+    
+    if (budget === 'standard') {
+      // Moderate compression
+      return schema.slice(0, 12).map(item => ({
+        ...item,
+        allowedValues: item.allowedValues?.slice(0, 5)
+      }));
+    }
+    
+    // Extended budget - minimal compression
+    return schema.map(item => ({
+      ...item,
+      allowedValues: item.allowedValues?.slice(0, 8)
+    }));
+  }
+
+  private buildOptimizedPrompt(
+    schema: SchemaItem[], 
+    categoryContext: string, 
+    budget: 'minimal' | 'standard' | 'extended'
+  ): string {
+    const attributeDescriptions = schema
+      .map((item) => {
+        const allowedValues = item.allowedValues?.length
+          ? ` (values: ${item.allowedValues
+              .map((av) => typeof av === 'string' ? av : av.shortForm)
+              .join(', ')})`
+          : '';
+        return `${item.key}: ${item.label}${allowedValues}`;
+      })
+      .join('\n');
+
+    const baseInstructions = budget === 'minimal' 
+      ? 'Extract attributes quickly and accurately.'
+      : 'Examine the image carefully for each attribute with high precision.';
+
+    return `
+You are a fashion AI specialist. ${categoryContext}
+
+EXTRACT THESE ATTRIBUTES:
+${attributeDescriptions}
+
+RULES:
+1. ${baseInstructions}
+2. Use ONLY provided allowed values
+3. Return null if not visible
+4. Provide confidence (0-100)
+
+OUTPUT JSON:
+{
+  "attribute_key": {
+    "rawValue": "observed_value",
+    "schemaValue": "normalized_value", 
+    "visualConfidence": 85,
+    "reasoning": "brief_explanation"
+  }
+}
+
+Return pure JSON only.`.trim();
   }
 }
