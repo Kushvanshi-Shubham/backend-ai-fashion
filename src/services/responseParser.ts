@@ -18,9 +18,12 @@ export class ResponseParser {
       for (const schemaItem of schema) {
         const aiAttribute: ParsedAIAttribute | undefined = parsed[schemaItem.key];
         if (aiAttribute) {
+          // If AI returns null for schemaValue but has a rawValue, try to match the rawValue
+          const valueToMatch = aiAttribute.schemaValue || aiAttribute.rawValue;
+          
           result[schemaItem.key] = {
             rawValue: aiAttribute.rawValue || null,
-            schemaValue: this.normalizeValue(aiAttribute.schemaValue, schemaItem),
+            schemaValue: this.normalizeValue(valueToMatch, schemaItem),
             visualConfidence: aiAttribute.visualConfidence || 0,
             mappingConfidence: 100,
             isNewDiscovery: false,
@@ -107,9 +110,12 @@ export class ResponseParser {
     for (const schemaItem of schema) {
       const aiAttribute = schemaData[schemaItem.key];
       if (aiAttribute) {
+        // If AI returns null for schemaValue but has a rawValue, try to match the rawValue
+        const valueToMatch = aiAttribute.schemaValue || aiAttribute.rawValue;
+        
         result[schemaItem.key] = {
           rawValue: aiAttribute.rawValue || null,
-          schemaValue: this.normalizeValue(aiAttribute.schemaValue, schemaItem),
+          schemaValue: this.normalizeValue(valueToMatch, schemaItem),
           visualConfidence: aiAttribute.visualConfidence || 0,
           mappingConfidence: 100,
           isNewDiscovery: false,
@@ -180,21 +186,47 @@ export class ResponseParser {
     }
 
     if (schemaItem.type === 'select' && schemaItem.allowedValues?.length) {
-      const stringValue = String(value).toLowerCase();
-      const match = schemaItem.allowedValues.find(allowed => {
-        // Handle both string format and AllowedValue object format
-        if (typeof allowed === 'string') {
-          return allowed.toLowerCase() === stringValue;
-        } else if (allowed && typeof allowed === 'object' && 'shortForm' in allowed) {
-          return allowed.shortForm.toLowerCase() === stringValue ||
-                 (allowed.fullForm && allowed.fullForm.toLowerCase() === stringValue);
-        }
-        return false;
-      });
+      // SIMPLE & BULLETPROOF normalization
+      const normalize = (str: string): string => {
+        return str.toLowerCase().trim().replace(/\s+/g, ' ').replace(/\s*-\s*/g, '-');
+      };
       
-      if (match) {
-        return typeof match === 'string' ? match : match.shortForm;
+      const inputNormalized = normalize(String(value));
+      console.log(`\n🔍 ${schemaItem.key.toUpperCase()} MATCHING:`);
+      console.log(`   Input: "${value}" → "${inputNormalized}"`);
+      
+      // Try ALL possible matches with detailed logging
+      for (let i = 0; i < schemaItem.allowedValues.length; i++) {
+        const allowed = schemaItem.allowedValues[i];
+        
+        if (typeof allowed === 'string') {
+          const allowedNorm = normalize(allowed);
+          console.log(`   [${i}] Testing string: "${allowed}" → "${allowedNorm}"`);
+          if (allowedNorm === inputNormalized) {
+            console.log(`   ✅ MATCHED string: "${allowed}"`);
+            return allowed;
+          }
+        } else if (allowed && typeof allowed === 'object' && 'shortForm' in allowed) {
+          const shortNorm = normalize(allowed.shortForm);
+          const fullNorm = allowed.fullForm ? normalize(allowed.fullForm) : '';
+          
+          console.log(`   [${i}] Testing object: "${allowed.shortForm}" | "${allowed.fullForm || 'N/A'}"`);
+          console.log(`       → "${shortNorm}" | "${fullNorm}"`);
+          
+          if (shortNorm === inputNormalized) {
+            console.log(`   ✅ MATCHED shortForm: "${allowed.shortForm}"`);
+            return allowed.shortForm;
+          }
+          
+          if (fullNorm && fullNorm === inputNormalized) {
+            console.log(`   ✅ MATCHED fullForm: "${allowed.fullForm}" → returning "${allowed.shortForm}"`);
+            return allowed.shortForm;
+          }
+        }
       }
+      
+      console.log(`   ❌ NO MATCH FOUND for "${inputNormalized}"`);
+      console.log(`   Total values checked: ${schemaItem.allowedValues.length}`);
       return null;
     }
 

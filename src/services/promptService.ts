@@ -1,6 +1,35 @@
 import type { SchemaItem, AllowedValue } from '../types/extraction';
 
 export class PromptService {
+  // 🎯 CATEGORY-FOCUSED: Ultra-precise prompt generation
+  generateCategoryFocusedPrompt(
+    schema: SchemaItem[], 
+    department: string,
+    subDepartment: string,
+    categoryName: string
+  ): string {
+    console.log('🎯 Using CATEGORY-FOCUSED prompt for:', { department, subDepartment, categoryName });
+    console.log('🔍 Schema has size attribute:', schema.some(s => s.key === 'size'));
+    console.log('🔍 All schema attributes:', schema.map(s => s.key));
+    
+    // Check if size attribute exists and show its allowed values
+    const sizeAttr = schema.find(s => s.key === 'size');
+    if (sizeAttr) {
+      console.log('🔍 Size attribute found with', sizeAttr.allowedValues?.length, 'allowed values');
+      console.log('🔍 Size allowed values (first 10):', sizeAttr.allowedValues?.slice(0, 10).map(av => 
+        typeof av === 'string' ? av : `${av.shortForm}|${av.fullForm}`
+      ));
+    } else {
+      console.log('❌ Size attribute NOT found in schema');
+    }
+    
+    // Build category-specific context
+    const categoryContext = this.buildCategoryFocusedContext(department, subDepartment, categoryName);
+    
+    // Generate surgical prompt with only relevant attributes
+    return this.buildCategoryFocusedPrompt(schema, categoryContext, department, subDepartment, categoryName);
+  }
+
   // 🚀 NEW: Token-optimized schema-driven prompt generation
   generateOptimizedPrompt(
     schema: SchemaItem[], 
@@ -8,6 +37,14 @@ export class PromptService {
     department?: string, 
     subDepartment?: string
   ): string {
+    console.log('⚡ Using OPTIMIZED prompt method for:', { department, subDepartment, categoryName });
+    console.log('🔍 Schema has size attribute:', schema.some(s => s.key === 'size'));
+    // If we have complete category info, use category-focused approach
+    if (department && subDepartment && categoryName) {
+      return this.generateCategoryFocusedPrompt(schema, department, subDepartment, categoryName);
+    }
+    
+    // Fallback to token budget approach
     const tokenBudget = this.calculateTokenBudget(schema.length);
     const categoryContext = this.getCategorySpecificContext(department, subDepartment, categoryName);
     
@@ -19,6 +56,9 @@ export class PromptService {
 
   // ✅ Original method for v1.0, enhanced for allowedValues objects and fullForm
   generateGenericPrompt(schema: SchemaItem[]): string {
+    console.log('📝 Using GENERIC prompt method');
+    console.log('🔍 Schema has size attribute:', schema.some(s => s.key === 'size'));
+    
     const attributeDescriptions = schema
       .map((item) => {
         const allowedValues =
@@ -82,19 +122,20 @@ CRITICAL: Return pure JSON only, no markdown code blocks.`.trim();
   generateDiscoveryPrompt(schema: SchemaItem[], categoryName?: string): string {
     const schemaAttributes = schema
       .map(
-        (item) =>
-          `- ${item.key}: ${item.label}${
-            item.allowedValues?.length
-              ? ` (allowed: ${item.allowedValues
-                  .map((av) => {
-                    if (typeof av === 'string') {
-                      return av;
-                    }
-                    return av.fullForm ?? av.shortForm;
-                  })
-                  .join(', ')})`
-              : ''
-          }`
+        (item) => {
+          const allowedValues = item.allowedValues?.length
+            ? ` (allowed: ${item.allowedValues
+                .map((av) => {
+                  if (typeof av === 'string') {
+                    return av;
+                  }
+                  return av.fullForm ?? av.shortForm;
+                })
+                .join(', ')})`
+            : '';
+          const description = item.description ? ` - ${item.description}` : '';
+          return `- ${item.key}: ${item.label}${allowedValues}${description}`;
+        }
       )
       .join('\n');
 
@@ -288,10 +329,11 @@ Focus on commercially valuable attributes that fashion professionals would find 
       .map((item) => {
         const allowedValues = item.allowedValues?.length
           ? ` (values: ${item.allowedValues
-              .map((av) => typeof av === 'string' ? av : av.shortForm)
+              .map((av) => typeof av === 'string' ? av : (av.fullForm || av.shortForm))
               .join(', ')})`
           : '';
-        return `${item.key}: ${item.label}${allowedValues}`;
+        const description = item.description ? ` - ${item.description}` : '';
+        return `${item.key}: ${item.label}${allowedValues}${description}`;
       })
       .join('\n');
 
@@ -322,5 +364,125 @@ OUTPUT JSON:
 }
 
 Return pure JSON only.`.trim();
+  }
+
+  // 🎯 CATEGORY-FOCUSED METHODS
+
+  private buildCategoryFocusedContext(
+    department: string,
+    subDepartment: string,
+    categoryName: string
+  ): string {
+    const contextKey = `${department}_${subDepartment}_${categoryName}`.toLowerCase();
+    
+    const focusedContexts: Record<string, string> = {
+      // 👕 T-Shirts - Focus on fit, style, fabric basics
+      'mens_tops_tshirt': 'You are analyzing a MENS T-SHIRT. Focus on: neck style, sleeve type, fit, fabric composition, and print details. Ignore belt, trouser, or formal wear attributes.',
+      
+      // 👖 Jeans/Pants - Focus on fit, waist, construction  
+      'mens_bottoms_jeans': 'You are analyzing MENS BOTTOMS (jeans/pants). Focus on: fit type, waist details, length, pocket construction, and fabric treatment. Ignore sleeve, collar, or top-related attributes.',
+      
+      // 👗 Ladies Blouse - Focus on style, fit, details
+      'ladies_tops_blouse': 'You are analyzing a LADIES BLOUSE/TOP. Focus on: neckline, sleeve style, fit, fabric, and closure details. Ignore bottom-wear or casual wear attributes.',
+      
+      // 🩳 Kids Bermuda - Focus on comfort, safety, adjustability
+      'kids_ib_ib_bermuda': 'You are analyzing KIDS BERMUDA SHORTS. Focus on: fit, length, waist adjustability, pocket details, and comfort features. Ignore formal wear or adult-specific attributes.',
+    };
+
+    return focusedContexts[contextKey] || 
+           `You are analyzing a ${categoryName} from ${department} ${subDepartment}. Focus on attributes most relevant to this specific garment type.`;
+  }
+
+  private buildCategoryFocusedPrompt(
+    schema: SchemaItem[],
+    categoryContext: string,
+    department: string,
+    subDepartment: string,
+    categoryName: string
+  ): string {
+    
+    // Debug: Check size attribute allowed values
+    const sizeAttr = schema.find(attr => attr.key === 'size');
+    if (sizeAttr) {
+      console.log('🔍 Size attribute in prompt schema:', {
+        key: sizeAttr.key,
+        allowedValuesCount: sizeAttr.allowedValues?.length,
+        hasSXXL: sizeAttr.allowedValues?.some(av => 
+          typeof av === 'string' ? av === 'S-XXL' : av.shortForm === 'S-XXL'
+        ),
+        sampleValues: sizeAttr.allowedValues?.slice(0, 10).map(av => 
+          typeof av === 'string' ? av : av.shortForm
+        )
+      });
+    }
+    
+    // Separate essential vs optional attributes
+    const essentialAttrs = schema.filter(attr => attr.required === true);
+    const optionalAttrs = schema.filter(attr => attr.required !== true);
+    
+    const formatAttributes = (attrs: SchemaItem[], label: string) => {
+      if (attrs.length === 0) return '';
+      
+      const descriptions = attrs.map((item) => {
+        const allowedValues = item.allowedValues?.length
+          ? ` (${item.allowedValues.slice(0, 5).map((av) => 
+              typeof av === 'string' ? av : (av.fullForm || av.shortForm)
+            ).join(', ')}${item.allowedValues.length > 5 ? '...' : ''})`
+          : '';
+        const description = item.description ? ` - ${item.description}` : '';
+        
+        // Debug: Log size attribute specifically
+        if (item.key === 'size') {
+          console.log('🔍 Size attribute in prompt:', {
+            allowedValues: allowedValues,
+            first5Values: item.allowedValues?.slice(0, 5).map((av) => 
+              typeof av === 'string' ? av : (av.fullForm || av.shortForm)
+            )
+          });
+        }
+        
+        return `• ${item.key}: ${item.label}${allowedValues}${description}`;
+      });
+      
+      return `\n${label}:\n${descriptions.join('\n')}`;
+    };
+
+    const essentialSection = formatAttributes(essentialAttrs, 'ESSENTIAL ATTRIBUTES (must extract)');
+    const optionalSection = formatAttributes(optionalAttrs, 'ADDITIONAL ATTRIBUTES (if visible)');
+
+    return `
+You are an expert fashion attribute extraction AI. ${categoryContext}
+
+CATEGORY: ${department} → ${subDepartment} → ${categoryName}
+
+EXTRACTION FOCUS:
+Only analyze attributes relevant to this specific garment type. Ignore unrelated attributes.
+${essentialSection}${optionalSection}
+
+EXTRACTION RULES:
+1. COMPLETENESS: Extract ALL visible attributes - aim for 80-90% completion rate
+2. EXACT MATCHING: Extract exactly what you see on the garment:
+   - If you see "S-XXL" (size range), use "S-XXL"
+   - If you see individual sizes like "M", use "M"
+   - If you see "Small", use "S" (standard abbreviation)
+3. FLEXIBLE MATCHING: 
+   - "Small/S" → "S"
+   - "Medium/M" → "M" 
+   - "2XL/XXL" → "2XL"
+   - "Cotton blend" → "Cotton" (closest match)
+4. CONFIDENCE: Rate your certainty (0-100)
+5. NULL HANDLING: Only use null if attribute is genuinely not visible/applicable
+
+CRITICAL: Return ONLY this JSON format:
+{
+  "attribute_key": {
+    "rawValue": "what_you_observe",
+    "schemaValue": "normalized_allowed_value", 
+    "visualConfidence": 85,
+    "reasoning": "why_this_value"
+  }
+}
+
+Analyze the image now and return pure JSON only.`.trim();
   }
 }
