@@ -8,6 +8,9 @@ import cors from 'cors';
 import helmet from 'helmet';
 import extractionRoutes from './routes/extraction';
 import queueRoutes from './routes/queue';
+import authRoutes from './routes/auth';
+import uploadsRoutes from './routes/uploads';
+import adminRoutes from './routes/admin';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { checkApiConfiguration } from './services/baseApi';
 
@@ -40,6 +43,9 @@ if (process.env.NODE_ENV === 'development') {
 // API routes
 app.use('/api', extractionRoutes);
 app.use('/api/queue', queueRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/uploads', uploadsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Root route
 app.get('/', (req, res) => {

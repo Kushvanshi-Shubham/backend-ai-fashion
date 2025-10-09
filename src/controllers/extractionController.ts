@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ExtractionService } from '../services/extractionService';
 import { ImageProcessor } from '../utils/imageProcessor';
 import type { SchemaItem, ExtractionRequest } from '../types/extraction';
+import prisma from '../services/db';
 
 export class ExtractionController {
   private extractionService = new ExtractionService();
@@ -19,6 +20,17 @@ export class ExtractionController {
 
       // Validate the image file
       ImageProcessor.validateImageFile(req.file);
+
+      // Persist upload record (memory upload)
+      const userId = (req as any).user?.sub ?? null;
+      const upload = await prisma.upload.create({
+        data: {
+          filename: req.file.originalname,
+          path: 'memory',
+          status: 'PROCESSING',
+          userId: userId,
+        }
+      });
 
       // Parse the request body
       const { schema, categoryName, customPrompt, discoveryMode } = req.body;
@@ -47,25 +59,36 @@ export class ExtractionController {
       // Convert image to base64
       const base64Image = await ImageProcessor.processImageToBase64(req.file);
 
-      // Extract attributes
-      const result = discoveryMode === 'true' || discoveryMode === true
-        ? await this.extractionService.extractWithDiscovery(
-            base64Image,
-            parsedSchema,
-            categoryName
-          )
-        : await this.extractionService.extractAttributes(
-            base64Image,
-            parsedSchema,
-            customPrompt,
-            categoryName
-          );
+      // Extract attributes and persist result
+      try {
+        const result = discoveryMode === 'true' || discoveryMode === true
+          ? await this.extractionService.extractWithDiscovery(
+              base64Image,
+              parsedSchema,
+              categoryName
+            )
+          : await this.extractionService.extractAttributes(
+              base64Image,
+              parsedSchema,
+              customPrompt,
+              categoryName
+            );
 
-      res.json({
-        success: true,
-        data: result,
-        timestamp: Date.now()
-      });
+        await prisma.extractionResult.create({
+          data: {
+            uploadId: upload.id,
+            data: JSON.parse(JSON.stringify(result)),
+            rawOutput: JSON.stringify(result),
+          }
+        });
+
+        await prisma.upload.update({ where: { id: upload.id }, data: { status: 'COMPLETED' } });
+
+        res.json({ success: true, data: result, timestamp: Date.now() });
+      } catch (err) {
+        await prisma.upload.update({ where: { id: upload.id }, data: { status: 'FAILED' } });
+        throw err;
+      }
 
     } catch (error) {
       next(error);
@@ -96,22 +119,28 @@ export class ExtractionController {
 
       // 🔧 OPTIMIZED: Use single method with discovery flag for consistency
       console.log(`🔍 Extraction Request - Discovery Mode: ${discoveryMode}, Schema Items: ${schema.length}`);
-      
-      const result = await this.extractionService.extractWithDiscovery(
-        image,
-        schema,
-        categoryName,
-        discoveryMode || false // Ensure boolean, default to false
-      );
 
-      console.log('✅ Extraction successful, sending result with attributes:', Object.keys(result.attributes).length);
-      console.log('📊 Sample attribute data:', Object.entries(result.attributes).slice(0, 2));
+      // Persist upload record for base64 input
+      const userId = (req as any).user?.sub ?? null;
+      const upload = await prisma.upload.create({ data: { filename: 'base64-upload', path: 'base64', status: 'PROCESSING', userId } });
 
-      res.json({
-        success: true,
-        data: result,
-        timestamp: Date.now()
-      });
+      try {
+        const result = await this.extractionService.extractWithDiscovery(
+          image,
+          schema,
+          categoryName,
+          discoveryMode || false // Ensure boolean, default to false
+        );
+
+  await prisma.extractionResult.create({ data: { uploadId: upload.id, data: JSON.parse(JSON.stringify(result)), rawOutput: JSON.stringify(result) } });
+        await prisma.upload.update({ where: { id: upload.id }, data: { status: 'COMPLETED' } });
+
+        console.log('✅ Extraction successful, sending result with attributes:', Object.keys(result.attributes || {}).length);
+        res.json({ success: true, data: result, timestamp: Date.now() });
+      } catch (err) {
+        await prisma.upload.update({ where: { id: upload.id }, data: { status: 'FAILED' } });
+        throw err;
+      }
 
     } catch (error) {
       next(error);

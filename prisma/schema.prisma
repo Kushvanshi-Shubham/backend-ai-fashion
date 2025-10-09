@@ -1,0 +1,66 @@
+// Minimal Prisma schema to get started with Neon/Postgres
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UploadStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  uploads   Upload[]
+}
+
+model Upload {
+  id          String       @id @default(cuid())
+  filename    String
+  path        String
+  status      UploadStatus @default(PENDING)
+  userId      String?
+  user        User?        @relation(fields: [userId], references: [id])
+  extractionResults ExtractionResult[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ExtractionResult {
+  id         String   @id @default(cuid())
+  uploadId   String
+  upload     Upload   @relation(fields: [uploadId], references: [id])
+  data       Json
+  rawOutput  String?
+  createdAt  DateTime @default(now())
+}
+
+model ExtractionLog {
+  id        String   @id @default(cuid())
+  level     LogLevel @default(INFO)
+  message   String
+  meta      Json?
+  createdAt DateTime @default(now())
+}
