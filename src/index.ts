@@ -8,6 +8,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import extractionRoutes from './routes/extraction';
 import queueRoutes from './routes/queue';
+import vlmExtractionRoutes from './routes/vlmExtraction';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { checkApiConfiguration } from './services/baseApi';
 
@@ -40,6 +41,7 @@ if (process.env.NODE_ENV === 'development') {
 // API routes
 app.use('/api', extractionRoutes);
 app.use('/api/queue', queueRoutes);
+app.use('/api', vlmExtractionRoutes); // Enhanced VLM routes
 
 // Root route
 app.get('/', (req, res) => {

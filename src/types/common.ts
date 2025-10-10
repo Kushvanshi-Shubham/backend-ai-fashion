@@ -6,7 +6,15 @@ export type ModelType =
   | 'gpt-4o'              // Latest GPT-4 with vision (most capable)
   | 'gpt-4-vision-preview' // Backup vision model
   | 'gpt-4-turbo'         // Fast text-only model for prompts
-  | 'gpt-3.5-turbo';  
+  | 'gpt-3.5-turbo'       // Legacy text model
+  | 'multi-vlm-pipeline'  // Multi-VLM processing pipeline
+  | 'fashion-clip+llava'  // Fashion-CLIP + LLaVA combination
+  | 'llava-next'          // LLaVA-NeXT model
+  | 'moondream'           // Moondream model
+  | 'kosmos-2'            // Microsoft Kosmos-2 model
+  | 'fashion-clip'        // Fashion-CLIP model
+  | 'ollama-llava'        // Local Ollama LLaVA
+  | 'huggingface-llava';  // HuggingFace LLaVA  
 
 export interface BaseEntity {
   id: string;
