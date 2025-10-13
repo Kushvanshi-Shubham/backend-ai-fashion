@@ -4,8 +4,175 @@ import { ImageProcessor } from '../utils/imageProcessor';
 import type { SchemaItem, ExtractionRequest } from '../types/extraction';
 import prisma from '../services/db';
 
+// Import category definitions to lookup department/subDepartment
+interface CategoryDefinition {
+  id: string;
+  department: string;
+  subDepartment: string;
+  category: string;
+  displayName: string;
+  description: string;
+}
+
+// Helper function to lookup category information
+const getCategoryInfo = (categoryName: string): { department?: string; subDepartment?: string } => {
+  if (!categoryName) return {};
+
+  // Smart prefix-based department detection
+  if (categoryName.startsWith('M_')) {
+    return { department: 'MENS', subDepartment: 'MS_U' };
+  } else if (categoryName.startsWith('W_')) {
+    return { department: 'WOMENS', subDepartment: 'WS_U' };
+  } else if (categoryName.startsWith('K_') || categoryName.startsWith('IBW_') || categoryName.startsWith('JBW_') || categoryName.startsWith('YBW_') || categoryName.startsWith('KBW_') || categoryName.startsWith('KIW_')) {
+    return { department: 'KIDS', subDepartment: 'KS_U' };
+  }
+
+  // Explicit mappings for specific categories
+  const categoryMap: Record<string, { department: string; subDepartment: string }> = {
+    'M_TEES_HS': { department: 'MENS', subDepartment: 'MS_U' },
+    // Add more specific mappings as needed
+  };
+  
+  return categoryMap[categoryName] || {};
+};
+
 export class ExtractionController {
   private extractionService = new ExtractionService();
+
+  // � OCR-ONLY TEXT EXTRACTION
+  extractOCRLabels = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.file) {
+        res.status(400).json({
+          success: false,
+          error: 'No image file provided',
+          timestamp: Date.now()
+        });
+        return;
+      }
+
+      ImageProcessor.validateImageFile(req.file);
+      
+      console.log('📖 Starting OCR-only extraction...');
+      
+      // Import OCR service
+      const { OCRService } = await import('../services/ocrService');
+      const ocrService = new OCRService();
+      
+      const startTime = Date.now();
+      
+      // Extract labels from image
+      const ocrResults = await ocrService.extractLabelsFromMultipleCrops(req.file.buffer);
+      
+      const processingTime = Date.now() - startTime;
+
+      res.json({
+        success: true,
+        data: {
+          ocrLabels: ocrResults.consolidatedLabels,
+          sectionResults: {
+            fullImage: ocrResults.fullImage,
+            topSection: ocrResults.topSection,
+            centerSection: ocrResults.centerSection,
+            bottomSection: ocrResults.bottomSection
+          },
+          processingTime,
+          confidence: ocrResults.consolidatedLabels.confidence
+        },
+        metadata: {
+          processingTime,
+          labelsFound: Object.values(ocrResults.consolidatedLabels).flat().length - 1,
+          sections: 4
+        },
+        timestamp: Date.now()
+      });
+
+      // Cleanup OCR resources
+      await ocrService.terminate();
+
+    } catch (error) {
+      console.error('❌ OCR extraction failed:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'OCR extraction failed',
+        timestamp: Date.now()
+      });
+    }
+  };
+
+  // �🔍 MULTI-CROP ENHANCED EXTRACTION
+  extractWithMultiCrop = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.file) {
+        res.status(400).json({
+          success: false,
+          error: 'No image file provided',
+          timestamp: Date.now()
+        });
+        return;
+      }
+
+      ImageProcessor.validateImageFile(req.file);
+
+      const { schema, categoryName, department, subDepartment } = req.body;
+      
+      if (!schema) {
+        res.status(400).json({
+          success: false,
+          error: 'Schema is required',
+          timestamp: Date.now()
+        });
+        return;
+      }
+
+      let parsedSchema: SchemaItem[];
+      try {
+        parsedSchema = typeof schema === 'string' ? JSON.parse(schema) : schema;
+      } catch (error) {
+        res.status(400).json({
+          success: false,
+          error: 'Invalid schema format',
+          timestamp: Date.now()
+        });
+        return;
+      }
+
+      console.log('🔍 Starting multi-crop extraction...');
+      
+      // Convert image to base64 for multi-crop analysis
+      const base64Image = await ImageProcessor.processImageToBase64(req.file);
+      
+      // Analyze with multi-crop enhancement
+      const results = await this.extractionService.extractWithMultiCrop(
+        base64Image,
+        parsedSchema,
+        categoryName,
+        true, // Enable discovery mode for multi-crop
+        department,
+        subDepartment
+      );
+
+      res.json({
+        success: true,
+        data: results,
+        metadata: {
+          processingTime: results.processingTime,
+          confidence: results.confidence,
+          tokensUsed: results.tokensUsed,
+          modelUsed: results.modelUsed
+        },
+        timestamp: Date.now()
+      });
+
+    } catch (error) {
+      console.error('❌ Multi-crop extraction failed:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Multi-crop extraction failed',
+        timestamp: Date.now()
+      });
+    }
+  };
 
   extractFromUpload = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -61,17 +228,26 @@ export class ExtractionController {
 
       // Extract attributes and persist result
       try {
+        // Lookup department/subDepartment information from category
+        const { department, subDepartment } = getCategoryInfo(categoryName || '');
+        console.log(`🏢 Category Info: ${categoryName} → Dept: ${department}, SubDept: ${subDepartment}`);
+
         const result = discoveryMode === 'true' || discoveryMode === true
           ? await this.extractionService.extractWithDiscovery(
               base64Image,
               parsedSchema,
-              categoryName
+              categoryName,
+              true, // discoveryMode
+              department,
+              subDepartment
             )
-          : await this.extractionService.extractAttributes(
+          : await this.extractionService.extractWithDiscovery(
               base64Image,
               parsedSchema,
-              customPrompt,
-              categoryName
+              categoryName,
+              false, // not discoveryMode
+              department,
+              subDepartment
             );
 
         await prisma.extractionResult.create({

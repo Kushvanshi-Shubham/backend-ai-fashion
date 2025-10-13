@@ -11,6 +11,7 @@ import queueRoutes from './routes/queue';
 import authRoutes from './routes/auth';
 import uploadsRoutes from './routes/uploads';
 import adminRoutes from './routes/admin';
+import vlmRoutes from './routes/vlm';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { checkApiConfiguration } from './services/baseApi';
 
@@ -46,6 +47,7 @@ app.use('/api/queue', queueRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/vlm', vlmRoutes);
 
 // Root route
 app.get('/', (req, res) => {

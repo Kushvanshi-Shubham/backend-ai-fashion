@@ -44,4 +44,18 @@ router.post('/extract/debug',
   extractionController.extractWithDebug
 );
 
+// 🔍 Multi-crop enhanced extraction
+router.post('/extract/multi-crop',
+  upload.single('image'),
+  validateRequest,
+  extractionController.extractWithMultiCrop
+);
+
+// 📖 OCR-only text extraction
+router.post('/extract/ocr',
+  upload.single('image'),
+  validateRequest,
+  extractionController.extractOCRLabels
+);
+
 export default router;

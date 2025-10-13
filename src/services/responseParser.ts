@@ -210,7 +210,7 @@ export class ResponseParser {
           const shortNorm = normalize(allowed.shortForm);
           const fullNorm = allowed.fullForm ? normalize(allowed.fullForm) : '';
           
-          console.log(`   [${i}] Testing object: "${allowed.shortForm}" | "${allowed.fullForm || 'N/A'}"`);
+          // console.log(`   [${i}] Testing object: "${allowed.shortForm}" | "${allowed.fullForm || 'N/A'}"`);
           console.log(`       → "${shortNorm}" | "${fullNorm}"`);
           
           if (shortNorm === inputNormalized) {

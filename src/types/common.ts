@@ -6,7 +6,10 @@ export type ModelType =
   | 'gpt-4o'              // Latest GPT-4 with vision (most capable)
   | 'gpt-4-vision-preview' // Backup vision model
   | 'gpt-4-turbo'         // Fast text-only model for prompts
-  | 'gpt-3.5-turbo';  
+  | 'gpt-3.5-turbo'       // Text-only model
+  | 'llava-1.5-7b-hf'     // HuggingFace LLaVA model
+  | 'llava-local'         // Local Ollama LLaVA model
+  | 'unknown';  
 
 export interface BaseEntity {
   id: string;
