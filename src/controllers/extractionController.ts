@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ExtractionService } from '../services/extractionService';
 import { ImageProcessor } from '../utils/imageProcessor';
+import { cacheService } from '../services/cacheService';
 import type { SchemaItem, ExtractionRequest } from '../types/extraction';
 
 export class ExtractionController {
@@ -74,7 +75,7 @@ export class ExtractionController {
 
   extractFromBase64 = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { image, schema, categoryName, customPrompt, discoveryMode }: ExtractionRequest = req.body;
+      const { image, schema, categoryName, customPrompt, discoveryMode, forceRefresh }: ExtractionRequest = req.body;
 
       if (!image) {
         res.status(400).json({
@@ -95,7 +96,27 @@ export class ExtractionController {
       }
 
       // 🔧 OPTIMIZED: Use single method with discovery flag for consistency
-      console.log(`🔍 Extraction Request - Discovery Mode: ${discoveryMode}, Schema Items: ${schema.length}`);
+      console.log(`🔍 Extraction Request - Discovery Mode: ${discoveryMode}, Schema Items: ${schema.length}, Force Refresh: ${forceRefresh}`);
+      
+      // 💾 Check cache first (skip if discovery mode, custom prompt, or force refresh requested)
+      const shouldUseCache = !discoveryMode && !customPrompt && !forceRefresh;
+      
+      if (shouldUseCache) {
+        const cachedResult = await cacheService.get(image, schema, categoryName);
+        if (cachedResult) {
+          console.log(`⚡ Cache HIT - Returning cached result (Legacy API)`);
+          res.json({
+            success: true,
+            data: cachedResult,
+            metadata: {
+              cached: true,
+              cacheHit: true
+            },
+            timestamp: Date.now()
+          });
+          return;
+        }
+      }
       
       const result = await this.extractionService.extractWithDiscovery(
         image,
@@ -104,12 +125,24 @@ export class ExtractionController {
         discoveryMode || false // Ensure boolean, default to false
       );
 
+      // 💾 Cache the result - always cache fresh extractions (except discovery mode)
+      const shouldCacheResult = !discoveryMode && !customPrompt;
+      if (shouldCacheResult) {
+        await cacheService.set(image, schema, result, categoryName);
+        if (forceRefresh) {
+          console.log(`🔄 Force Refresh - Updated cache with fresh result`);
+        }
+      }
+
       console.log('✅ Extraction successful, sending result with attributes:', Object.keys(result.attributes).length);
       console.log('📊 Sample attribute data:', Object.entries(result.attributes).slice(0, 2));
 
       res.json({
         success: true,
         data: result,
+        metadata: {
+          cached: false
+        },
         timestamp: Date.now()
       });
 

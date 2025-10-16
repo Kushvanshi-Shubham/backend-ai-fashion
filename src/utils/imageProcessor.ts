@@ -13,14 +13,23 @@ export class ImageProcessor {
 
   static validateImageFile(file: Express.Multer.File): void {
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    const maxSize = parseInt(process.env.MAX_FILE_SIZE || '10485760'); // 10MB default
+    const maxSize = parseInt(process.env.MAX_FILE_SIZE || '15728640'); // 15MB default
 
     if (!allowedTypes.includes(file.mimetype)) {
-      throw new Error(`Invalid file type. Allowed types: ${allowedTypes.join(', ')}`);
+      const fileType = file.mimetype || 'unknown';
+      throw new Error(
+        `❌ Invalid file type: ${fileType}. ` +
+        `Please upload an image in one of these formats: JPEG, PNG, or WebP.`
+      );
     }
 
     if (file.size > maxSize) {
-      throw new Error(`File size too large. Maximum size: ${maxSize / 1024 / 1024}MB`);
+      const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+      const maxSizeMB = (maxSize / 1024 / 1024).toFixed(0);
+      throw new Error(
+        `❌ File size (${fileSizeMB}MB) exceeds the maximum allowed size of ${maxSizeMB}MB. ` +
+        `Please compress your image or use a smaller file.`
+      );
     }
   }
 

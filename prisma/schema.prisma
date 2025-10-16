@@ -1,0 +1,281 @@
+// ============================================
+// 🎯 FASHION HIERARCHY DATABASE SCHEMA
+// ============================================
+// This schema manages the complete fashion product hierarchy:
+// Department → Sub-Department → Category → Attributes
+// 
+// Author: AI Fashion Extractor Team
+// Date: 2025-10-16
+// Database: PostgreSQL with Prisma ORM
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+  previewFeatures = ["fullTextSearchPostgres"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// HIERARCHY TABLES
+// ============================================
+
+/// Department: Top level of hierarchy (MENS, LADIES, KIDS)
+model Department {
+  id              Int              @id @default(autoincrement())
+  code            String           @unique @db.VarChar(50)
+  name            String           @db.VarChar(100)
+  description     String?          @db.Text
+  displayOrder    Int              @default(0) @map("display_order")
+  isActive        Boolean          @default(true) @map("is_active")
+  
+  // Relations
+  subDepartments  SubDepartment[]
+  
+  // Metadata
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  
+  @@index([code])
+  @@index([isActive])
+  @@map("departments")
+}
+
+/// Sub-Department: Second level (TOPWEAR, BOTTOMWEAR, INNERWEAR)
+model SubDepartment {
+  id              Int              @id @default(autoincrement())
+  departmentId    Int              @map("department_id")
+  code            String           @db.VarChar(50)
+  name            String           @db.VarChar(100)
+  description     String?          @db.Text
+  displayOrder    Int              @default(0) @map("display_order")
+  isActive        Boolean          @default(true) @map("is_active")
+  
+  // Relations
+  department      Department       @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  categories      Category[]
+  
+  // Metadata
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  
+  @@unique([departmentId, code])
+  @@index([departmentId, isActive])
+  @@map("sub_departments")
+}
+
+/// Category: Third level (T_SHIRT, JEANS, DRESS)
+model Category {
+  id              Int                   @id @default(autoincrement())
+  subDepartmentId Int                   @map("sub_department_id")
+  code            String                @unique @db.VarChar(50)
+  name            String                @db.VarChar(100)
+  description     String?               @db.Text
+  displayOrder    Int                   @default(0) @map("display_order")
+  isActive        Boolean               @default(true) @map("is_active")
+  
+  // Relations
+  subDepartment   SubDepartment         @relation(fields: [subDepartmentId], references: [id], onDelete: Cascade)
+  attributes      CategoryAttribute[]
+  extractions     ExtractedAttribute[]
+  
+  // Metadata
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  
+  @@index([subDepartmentId, isActive])
+  @@index([code])
+  @@map("categories")
+}
+
+// ============================================
+// ATTRIBUTE DEFINITION TABLES
+// ============================================
+
+/// Master Attributes: All possible attributes (COLOR, SIZE, FABRIC, etc.)
+model MasterAttribute {
+  id                    Int                     @id @default(autoincrement())
+  key                   String                  @unique @db.VarChar(100)
+  label                 String                  @db.VarChar(200)
+  fullForm              String?                 @map("full_form") @db.VarChar(200)
+  type                  AttributeType           @default(TEXT)
+  description           String?                 @db.Text
+  isRequired            Boolean                 @default(false) @map("is_required")
+  displayOrder          Int                     @default(0) @map("display_order")
+  isActive              Boolean                 @default(true) @map("is_active")
+  
+  // Range Detection Configuration
+  hasRangeDetection     Boolean                 @default(false) @map("has_range_detection")
+  rangeType             String?                 @map("range_type") @db.VarChar(50)
+  rangeConfig           Json?                   @map("range_config")
+  
+  // Validation Rules (stored as JSON)
+  validationRules       Json?                   @map("validation_rules")
+  
+  // Relations
+  allowedValues         AttributeAllowedValue[]
+  categoryAttributes    CategoryAttribute[]
+  extractions           ExtractedAttribute[]
+  
+  // Metadata
+  createdAt             DateTime                @default(now()) @map("created_at")
+  updatedAt             DateTime                @updatedAt @map("updated_at")
+  
+  @@index([key])
+  @@index([type])
+  @@index([isActive])
+  @@map("master_attributes")
+}
+
+/// Attribute Allowed Values: Dropdown options for each attribute
+model AttributeAllowedValue {
+  id              Int              @id @default(autoincrement())
+  attributeId     Int              @map("attribute_id")
+  shortForm       String           @map("short_form") @db.VarChar(100)
+  fullForm        String           @map("full_form") @db.VarChar(200)
+  displayOrder    Int              @default(0) @map("display_order")
+  isActive        Boolean          @default(true) @map("is_active")
+  
+  // Relations
+  attribute       MasterAttribute  @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  
+  // Metadata
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  
+  @@unique([attributeId, shortForm])
+  @@index([attributeId, isActive])
+  @@map("attribute_allowed_values")
+}
+
+// ============================================
+// CATEGORY-ATTRIBUTE MAPPING
+// ============================================
+
+/// Category Attributes: Which attributes are enabled for each category (1/0 matrix)
+model CategoryAttribute {
+  id              Int              @id @default(autoincrement())
+  categoryId      Int              @map("category_id")
+  attributeId     Int              @map("attribute_id")
+  isEnabled       Boolean          @default(true) @map("is_enabled")
+  isRequired      Boolean          @default(false) @map("is_required")
+  displayOrder    Int              @default(0) @map("display_order")
+  defaultValue    String?          @map("default_value") @db.VarChar(200)
+  
+  // Relations
+  category        Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  attribute       MasterAttribute  @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  
+  // Metadata
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  
+  @@unique([categoryId, attributeId])
+  @@index([categoryId, isEnabled])
+  @@map("category_attributes")
+}
+
+// ============================================
+// EXTRACTED DATA TABLE
+// ============================================
+
+/// Extracted Attributes: Actual extraction results from AI
+model ExtractedAttribute {
+  id              Int              @id @default(autoincrement())
+  imageUrl        String           @map("image_url") @db.Text
+  categoryId      Int              @map("category_id")
+  attributeId     Int              @map("attribute_id")
+  rawValue        String?          @map("raw_value") @db.VarChar(500)
+  schemaValue     String?          @map("schema_value") @db.VarChar(500)
+  confidence      Decimal?         @db.Decimal(5, 2)
+  isDiscovered    Boolean          @default(false) @map("is_discovered")
+  
+  // Relations
+  category        Category         @relation(fields: [categoryId], references: [id])
+  attribute       MasterAttribute  @relation(fields: [attributeId], references: [id])
+  
+  // Metadata
+  extractedAt     DateTime         @default(now()) @map("extracted_at")
+  
+  @@index([categoryId, attributeId])
+  @@index([confidence])
+  @@index([extractedAt])
+  @@map("extracted_attributes")
+}
+
+// ============================================
+// AUTHENTICATION
+// ============================================
+
+/// User: Admin and regular users
+model User {
+  id              Int              @id @default(autoincrement())
+  email           String           @unique @db.VarChar(255)
+  password        String           @db.VarChar(255)
+  name            String           @db.VarChar(100)
+  role            UserRole         @default(USER)
+  isActive        Boolean          @default(true) @map("is_active")
+  lastLogin       DateTime?        @map("last_login")
+  
+  // Metadata
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// ============================================
+// AUDIT & HISTORY
+// ============================================
+
+/// Change History: Track all changes for audit trail
+model ChangeHistory {
+  id              Int              @id @default(autoincrement())
+  tableName       String           @map("table_name") @db.VarChar(50)
+  recordId        Int              @map("record_id")
+  action          ChangeAction
+  oldValue        Json?            @map("old_value")
+  newValue        Json?            @map("new_value")
+  changedBy       Int?             @map("changed_by")
+  changedAt       DateTime         @default(now()) @map("changed_at")
+  
+  @@index([tableName, recordId])
+  @@index([changedBy])
+  @@index([changedAt])
+  @@map("change_history")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum AttributeType {
+  TEXT
+  SELECT
+  NUMBER
+  BOOLEAN
+  DATE
+  
+  @@map("attribute_type")
+}
+
+enum ChangeAction {
+  INSERT
+  UPDATE
+  DELETE
+  
+  @@map("change_action")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+  
+  @@map("user_role")
+}

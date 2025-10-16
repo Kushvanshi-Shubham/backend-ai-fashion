@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { VLMService } from '../services/vlm/vlmService';
 import { ImageProcessor } from '../utils/imageProcessor';
+import { cacheService } from '../services/cacheService';
 import type { SchemaItem, ExtractionRequest } from '../types/extraction';
 import type { FashionExtractionRequest } from '../types/vlm';
 
@@ -108,6 +109,7 @@ export class EnhancedExtractionController {
         categoryName, 
         customPrompt, 
         discoveryMode,
+        forceRefresh,
         department,
         subDepartment,
         season,
@@ -137,7 +139,30 @@ export class EnhancedExtractionController {
         return;
       }
 
-      console.log(`🎯 Enhanced Base64 VLM Extraction - Discovery: ${discoveryMode}, Schema: ${schema.length} attrs`);
+      console.log(`🎯 Enhanced Base64 VLM Extraction - Discovery: ${discoveryMode}, Schema: ${schema.length} attrs, Force Refresh: ${forceRefresh}`);
+
+      // 💾 Check cache first (skip if discovery mode, custom prompt, or force refresh requested)
+      const shouldUseCache = !discoveryMode && !customPrompt && !forceRefresh;
+      
+      if (shouldUseCache) {
+        const cachedResult = await cacheService.get(image, schema, categoryName);
+        if (cachedResult) {
+          console.log(`⚡ Cache HIT - Returning cached result instantly`);
+          res.json({
+            success: true,
+            data: cachedResult,
+            metadata: {
+              enhancedMode: true,
+              vlmPipeline: 'multi-model',
+              fashionSpecialized: true,
+              cached: true,
+              cacheHit: true
+            },
+            timestamp: Date.now()
+          });
+          return;
+        }
+      }
 
       // Create enhanced fashion extraction request
       const vlmRequest: FashionExtractionRequest = {
@@ -155,6 +180,15 @@ export class EnhancedExtractionController {
       // Extract using Multi-VLM pipeline
       const result = await this.vlmService.extractFashionAttributes(vlmRequest);
 
+      // 💾 Cache the result - always cache fresh extractions (except discovery mode)
+      const shouldCacheResult = !discoveryMode && !customPrompt;
+      if (shouldCacheResult) {
+        await cacheService.set(image, schema, result, categoryName);
+        if (forceRefresh) {
+          console.log(`🔄 Force Refresh - Updated cache with fresh VLM result`);
+        }
+      }
+
       console.log(`✅ Enhanced Base64 VLM Complete - Confidence: ${result.confidence}%, Discoveries: ${result.discoveries?.length || 0}`);
 
       res.json({
@@ -164,7 +198,9 @@ export class EnhancedExtractionController {
           enhancedMode: true,
           vlmPipeline: 'multi-model',
           fashionSpecialized: true,
-          discoveryEnabled: discoveryMode
+          discoveryEnabled: discoveryMode,
+          cached: false,
+          forceRefresh: forceRefresh || false
         },
         timestamp: Date.now()
       });

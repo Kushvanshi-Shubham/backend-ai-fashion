@@ -141,6 +141,7 @@ export interface ExtractionRequest {
   categoryName?: string;
   customPrompt?: string;
   discoveryMode?: boolean;
+  forceRefresh?: boolean; // Skip cache and force fresh extraction
 }
 
 export interface ExtractionResponse {

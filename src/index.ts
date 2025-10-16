@@ -6,17 +6,53 @@ dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import extractionRoutes from './routes/extraction';
 import queueRoutes from './routes/queue';
 import vlmExtractionRoutes from './routes/vlmExtraction';
+import cacheRoutes from './routes/cache';
+import adminRoutes from './routes/admin';
+import authRoutes from './routes/auth';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { checkApiConfiguration } from './services/baseApi';
+import { cacheService } from './services/cacheService';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Security middleware
 app.use(helmet());
+
+// Rate limiting middleware
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: {
+    success: false,
+    error: '⚠️ Too many requests from this IP. Please try again in 15 minutes.',
+    timestamp: Date.now()
+  },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  // Skip rate limiting for health checks
+  skip: (req) => req.path === '/' || req.path === '/api/health'
+});
+
+// Stricter rate limit for extraction endpoints (expensive operations)
+const extractionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // Limit to 50 extractions per 15 minutes
+  message: {
+    success: false,
+    error: '⚠️ Extraction limit reached. You can perform 50 extractions every 15 minutes. Please wait before trying again.',
+    timestamp: Date.now()
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Apply general rate limiting to all API routes
+app.use('/api/', limiter);
 
 // CORS configuration
 app.use(cors({
@@ -39,16 +75,26 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // API routes
+app.use('/api/auth', authRoutes); // Authentication routes
 app.use('/api', extractionRoutes);
 app.use('/api/queue', queueRoutes);
 app.use('/api', vlmExtractionRoutes); // Enhanced VLM routes
+app.use('/api', cacheRoutes); // Cache management routes
+app.use('/api/admin', adminRoutes); // Admin hierarchy management routes
 
 // Root route
-app.get('/', (req, res) => {
+app.get('/', async (req, res) => {
+  const cacheStats = await cacheService.getStats();
+  
   res.json({
     message: 'AI Fashion Extractor Backend API',
-    version: '1.0.0',
+    version: '2.0.0-vlm',
     status: 'running',
+    cache: {
+      enabled: cacheStats.enabled,
+      connected: cacheStats.connected,
+      entries: cacheStats.totalKeys
+    },
     timestamp: new Date().toISOString()
   });
 });

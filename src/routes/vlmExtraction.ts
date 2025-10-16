@@ -1,10 +1,24 @@
 import { Router } from 'express';
 import multer from 'multer';
+import rateLimit from 'express-rate-limit';
 import { EnhancedExtractionController } from '../controllers/enhancedExtractionController';
 import { validateRequest } from '../middleware/errorHandler';
 
 const router = Router();
 const enhancedController = new EnhancedExtractionController();
+
+// Stricter rate limit for VLM extraction (most expensive)
+const vlmExtractionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // Limit to 30 VLM extractions per 15 minutes (more conservative)
+  message: {
+    success: false,
+    error: '⚠️ VLM extraction limit reached. You can perform 30 enhanced extractions every 15 minutes.',
+    timestamp: Date.now()
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 // Configure multer for enhanced file uploads
 const upload = multer({
@@ -24,29 +38,32 @@ const upload = multer({
 
 // 🚀 Enhanced VLM Extraction Routes
 
-// VLM System Health Check
+// VLM System Health Check (no rate limiting)
 router.get('/vlm/health', enhancedController.vlmHealthCheck);
 
-// Enhanced extraction from uploaded file
+// Enhanced extraction from uploaded file (rate limited)
 router.post('/vlm/extract/upload', 
+  vlmExtractionLimiter,
   upload.single('image'), 
   validateRequest, 
   enhancedController.extractFromUploadVLM
 );
 
-// Enhanced extraction from base64 image
+// Enhanced extraction from base64 image (rate limited)
 router.post('/vlm/extract/base64', 
+  vlmExtractionLimiter,
   validateRequest, 
   enhancedController.extractFromBase64VLM
 );
 
-// Advanced VLM analysis with full pipeline
+// Advanced VLM analysis with full pipeline (rate limited)
 router.post('/vlm/extract/advanced', 
+  vlmExtractionLimiter,
   validateRequest, 
   enhancedController.extractWithAdvancedVLM
 );
 
-// Configure VLM providers
+// Configure VLM providers (admin only - lighter rate limit)
 router.post('/vlm/configure', 
   validateRequest, 
   enhancedController.configureVLMProvider

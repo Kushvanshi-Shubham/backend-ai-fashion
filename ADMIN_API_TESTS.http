@@ -1,0 +1,194 @@
+# Admin API Test Suite
+
+## Base URL
+http://localhost:5000/api/admin
+
+---
+
+## 📊 Dashboard Stats
+GET http://localhost:5000/api/admin/stats
+
+---
+
+## 🏢 Departments
+
+### Get All Departments
+GET http://localhost:5000/api/admin/departments
+
+### Get All Departments with Sub-Departments
+GET http://localhost:5000/api/admin/departments?includeSubDepts=true
+
+### Get Single Department
+GET http://localhost:5000/api/admin/departments/1
+
+### Create Department
+POST http://localhost:5000/api/admin/departments
+Content-Type: application/json
+
+{
+  "code": "TEST",
+  "name": "Test Department",
+  "description": "Test department for API testing",
+  "displayOrder": 999,
+  "isActive": true
+}
+
+### Update Department
+PUT http://localhost:5000/api/admin/departments/1
+Content-Type: application/json
+
+{
+  "description": "Updated description"
+}
+
+### Delete Department
+DELETE http://localhost:5000/api/admin/departments/999
+
+---
+
+## 📁 Sub-Departments
+
+### Get All Sub-Departments
+GET http://localhost:5000/api/admin/sub-departments
+
+### Get Sub-Departments by Department
+GET http://localhost:5000/api/admin/sub-departments?departmentId=1
+
+### Get Single Sub-Department
+GET http://localhost:5000/api/admin/sub-departments/1
+
+### Create Sub-Department
+POST http://localhost:5000/api/admin/sub-departments
+Content-Type: application/json
+
+{
+  "departmentId": 1,
+  "code": "TEST_SUB",
+  "name": "Test Sub Department",
+  "description": "Test sub-department",
+  "displayOrder": 999,
+  "isActive": true
+}
+
+### Update Sub-Department
+PUT http://localhost:5000/api/admin/sub-departments/1
+Content-Type: application/json
+
+{
+  "description": "Updated sub-department description"
+}
+
+### Delete Sub-Department
+DELETE http://localhost:5000/api/admin/sub-departments/999
+
+---
+
+## 🏷️ Categories
+
+### Get All Categories (Paginated)
+GET http://localhost:5000/api/admin/categories?page=1&limit=20
+
+### Get Categories by Department
+GET http://localhost:5000/api/admin/categories?departmentId=1
+
+### Get Categories by Sub-Department
+GET http://localhost:5000/api/admin/categories?subDepartmentId=1
+
+### Search Categories
+GET http://localhost:5000/api/admin/categories?search=SHIRT
+
+### Get Single Category
+GET http://localhost:5000/api/admin/categories/1
+
+### Create Category
+POST http://localhost:5000/api/admin/categories
+Content-Type: application/json
+
+{
+  "subDepartmentId": 1,
+  "code": "TEST_CAT",
+  "name": "Test Category",
+  "description": "Test category",
+  "displayOrder": 999,
+  "isActive": true
+}
+
+### Update Category
+PUT http://localhost:5000/api/admin/categories/1
+Content-Type: application/json
+
+{
+  "description": "Updated category description"
+}
+
+### Delete Category
+DELETE http://localhost:5000/api/admin/categories/999
+
+### Update Category Attributes
+PUT http://localhost:5000/api/admin/categories/1/attributes
+Content-Type: application/json
+
+{
+  "attributeIds": [1, 2, 3, 5, 8]
+}
+
+---
+
+## 🎨 Master Attributes
+
+### Get All Attributes
+GET http://localhost:5000/api/admin/attributes
+
+### Get All Attributes with Values
+GET http://localhost:5000/api/admin/attributes?includeValues=true
+
+### Get Single Attribute
+GET http://localhost:5000/api/admin/attributes/1
+
+### Create Attribute
+POST http://localhost:5000/api/admin/attributes
+Content-Type: application/json
+
+{
+  "key": "test_attribute",
+  "label": "Test Attribute",
+  "type": "SELECT",
+  "description": "Test attribute for API testing",
+  "displayOrder": 999,
+  "isActive": true
+}
+
+### Update Attribute
+PUT http://localhost:5000/api/admin/attributes/1
+Content-Type: application/json
+
+{
+  "description": "Updated attribute description"
+}
+
+### Delete Attribute
+DELETE http://localhost:5000/api/admin/attributes/999
+
+### Add Allowed Value
+POST http://localhost:5000/api/admin/attributes/1/values
+Content-Type: application/json
+
+{
+  "shortForm": "TEST",
+  "fullForm": "Test Value",
+  "displayOrder": 999,
+  "isActive": true
+}
+
+### Delete Allowed Value
+DELETE http://localhost:5000/api/admin/attributes/1/values/999
+
+---
+
+## 🌳 Hierarchy
+
+### Get Complete Hierarchy Tree
+GET http://localhost:5000/api/admin/hierarchy/tree
+
+### Export Hierarchy (Download JSON)
+GET http://localhost:5000/api/admin/hierarchy/export
