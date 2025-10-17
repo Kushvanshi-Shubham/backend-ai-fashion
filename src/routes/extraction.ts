@@ -81,13 +81,6 @@ router.post('/extract/base64/legacy',
   extractionController.extractFromBase64
 );
 
-// Extract with debug information
-router.post('/extract/debug', 
-  extractionLimiter,
-  validateRequest, 
-  extractionController.extractWithDebug
-);
-
 // VLM Health Check Routes
 router.get('/vlm/health', vlmController.vlmHealthCheck);
 

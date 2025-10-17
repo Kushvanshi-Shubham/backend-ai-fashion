@@ -446,6 +446,7 @@ export const updateCategoryAttributes = async (req: Request, res: Response): Pro
       attributeId: attrId,
       displayOrder: index,
       isRequired: false,
+      isEnabled: true,
     }));
     
     await prisma.categoryAttribute.createMany({
@@ -453,6 +454,84 @@ export const updateCategoryAttributes = async (req: Request, res: Response): Pro
     });
     
     res.json({ success: true, message: 'Category attributes updated successfully' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Update single category-attribute mapping
+export const updateCategoryAttributeMapping = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { categoryId, attributeId } = req.params;
+    const { isEnabled, isRequired, displayOrder, defaultValue } = req.body;
+    
+    const mapping = await prisma.categoryAttribute.updateMany({
+      where: {
+        categoryId: parseInt(categoryId),
+        attributeId: parseInt(attributeId),
+      },
+      data: {
+        ...(isEnabled !== undefined && { isEnabled }),
+        ...(isRequired !== undefined && { isRequired }),
+        ...(displayOrder !== undefined && { displayOrder }),
+        ...(defaultValue !== undefined && { defaultValue }),
+      },
+    });
+    
+    if (mapping.count === 0) {
+      res.status(404).json({ success: false, error: 'Mapping not found' });
+      return;
+    }
+    
+    res.json({ success: true, message: 'Mapping updated successfully' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Add attribute to category
+export const addAttributeToCategory = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { categoryId } = req.params;
+    const { attributeId, isEnabled, isRequired, displayOrder, defaultValue } = req.body;
+    
+    const mapping = await prisma.categoryAttribute.create({
+      data: {
+        categoryId: parseInt(categoryId),
+        attributeId,
+        isEnabled: isEnabled ?? true,
+        isRequired: isRequired ?? false,
+        displayOrder: displayOrder ?? 0,
+        defaultValue: defaultValue ?? null,
+      },
+      include: {
+        attribute: {
+          include: {
+            allowedValues: true,
+          },
+        },
+      },
+    });
+    
+    res.status(201).json({ success: true, data: mapping });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Remove attribute from category
+export const removeAttributeFromCategory = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { categoryId, attributeId } = req.params;
+    
+    await prisma.categoryAttribute.deleteMany({
+      where: {
+        categoryId: parseInt(categoryId),
+        attributeId: parseInt(attributeId),
+      },
+    });
+    
+    res.json({ success: true, message: 'Attribute removed from category' });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -607,6 +686,21 @@ export const getHierarchyTree = async (req: Request, res: Response): Promise<voi
           include: {
             categories: {
               orderBy: { displayOrder: 'asc' },
+              include: {
+                attributes: {
+                  orderBy: { displayOrder: 'asc' },
+                  include: {
+                    attribute: {
+                      include: {
+                        allowedValues: {
+                          where: { isActive: true },
+                          orderBy: { displayOrder: 'asc' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
             },
           },
         },

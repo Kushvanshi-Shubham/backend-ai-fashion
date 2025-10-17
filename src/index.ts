@@ -8,9 +8,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import extractionRoutes from './routes/extraction';
-import queueRoutes from './routes/queue';
 import vlmExtractionRoutes from './routes/vlmExtraction';
-import cacheRoutes from './routes/cache';
 import adminRoutes from './routes/admin';
 import authRoutes from './routes/auth';
 import { errorHandler, notFound } from './middleware/errorHandler';
@@ -77,9 +75,7 @@ if (process.env.NODE_ENV === 'development') {
 // API routes
 app.use('/api/auth', authRoutes); // Authentication routes
 app.use('/api', extractionRoutes);
-app.use('/api/queue', queueRoutes);
 app.use('/api', vlmExtractionRoutes); // Enhanced VLM routes
-app.use('/api', cacheRoutes); // Cache management routes
 app.use('/api/admin', adminRoutes); // Admin hierarchy management routes
 
 // Root route

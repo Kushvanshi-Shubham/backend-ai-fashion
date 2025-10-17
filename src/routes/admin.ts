@@ -39,6 +39,9 @@ router.post('/categories', adminController.createCategory);
 router.put('/categories/:id', adminController.updateCategory);
 router.delete('/categories/:id', adminController.deleteCategory);
 router.put('/categories/:id/attributes', adminController.updateCategoryAttributes);
+router.put('/categories/:categoryId/attributes/:attributeId', adminController.updateCategoryAttributeMapping);
+router.post('/categories/:categoryId/attributes', adminController.addAttributeToCategory);
+router.delete('/categories/:categoryId/attributes/:attributeId', adminController.removeAttributeFromCategory);
 
 // ═══════════════════════════════════════════════════════
 // MASTER ATTRIBUTES

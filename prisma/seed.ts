@@ -407,11 +407,11 @@ async function importCategoryAttributes() {
     
     try {
       const category = await prisma.category.findUnique({
-        where: { code: cat.categoryName },
+        where: { code: cat.category }, // ✅ FIXED: Use 'category' property, not 'categoryName'
       });
       
       if (!category) {
-        logProgress(`  ⚠️ Category not found: ${cat.categoryName}`, 'warning');
+        logProgress(`  ⚠️ Category not found: ${cat.category}`, 'warning');
         continue;
       }
       
@@ -450,11 +450,11 @@ async function importCategoryAttributes() {
             logProgress(`  Progress: ${imported}/${totalMappings} mappings...`, 'info');
           }
         } catch (error) {
-          logProgress(`    ✗ Failed mapping: ${cat.categoryName} → ${attrKey}`, 'error');
+          logProgress(`    ✗ Failed mapping: ${cat.category} → ${attrKey}`, 'error');
         }
       }
     } catch (error) {
-      logProgress(`  ✗ Failed category: ${cat.categoryName}`, 'error');
+      logProgress(`  ✗ Failed category: ${cat.category}`, 'error');
       console.error(error);
     }
   }
