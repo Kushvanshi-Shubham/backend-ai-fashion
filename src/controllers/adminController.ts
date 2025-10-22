@@ -361,6 +361,52 @@ export const getCategoryById = async (req: Request, res: Response): Promise<void
   }
 };
 
+/**
+ * Get category by code with all attributes
+ * Used by frontend extraction flow
+ */
+export const getCategoryByCode = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { code } = req.params;
+    
+    const category = await prisma.category.findUnique({
+      where: { code: code },
+      include: {
+        subDepartment: {
+          include: {
+            department: true,
+          },
+        },
+        attributes: {
+          orderBy: {
+            displayOrder: 'asc',
+          },
+          include: {
+            attribute: {
+              include: {
+                allowedValues: {
+                  orderBy: {
+                    displayOrder: 'asc',
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    
+    if (!category) {
+      res.status(404).json({ success: false, error: `Category with code '${code}' not found` });
+      return;
+    }
+    
+    res.json({ success: true, data: category });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 export const createCategory = async (req: Request, res: Response): Promise<void> => {
   try {
     const validated = CategorySchema.parse(req.body);
@@ -678,7 +724,7 @@ export const deleteAllowedValue = async (req: Request, res: Response): Promise<v
 
 export const getHierarchyTree = async (req: Request, res: Response): Promise<void> => {
   try {
-    const tree = await prisma.department.findMany({
+    const departments = await prisma.department.findMany({
       orderBy: { displayOrder: 'asc' },
       include: {
         subDepartments: {
@@ -707,7 +753,21 @@ export const getHierarchyTree = async (req: Request, res: Response): Promise<voi
       },
     });
     
-    res.json({ success: true, data: tree });
+    // Count totals
+    const totalCategories = departments.reduce((acc, dept) => 
+      acc + dept.subDepartments.reduce((subAcc, subDept) => 
+        subAcc + subDept.categories.length, 0), 0);
+    
+    const totalAttributes = await prisma.masterAttribute.count();
+    
+    res.json({ 
+      success: true, 
+      data: {
+        departments,
+        totalCategories,
+        totalAttributes
+      }
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

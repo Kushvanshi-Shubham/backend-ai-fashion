@@ -35,6 +35,7 @@ router.delete('/sub-departments/:id', adminController.deleteSubDepartment);
 // ═══════════════════════════════════════════════════════
 router.get('/categories', adminController.getAllCategories);
 router.get('/categories/:id', adminController.getCategoryById);
+router.get('/categories/:code/attributes', adminController.getCategoryByCode); // Get by code with attributes
 router.post('/categories', adminController.createCategory);
 router.put('/categories/:id', adminController.updateCategory);
 router.delete('/categories/:id', adminController.deleteCategory);
