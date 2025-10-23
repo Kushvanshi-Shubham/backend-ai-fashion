@@ -14,8 +14,12 @@ import authRoutes from './routes/auth';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { checkApiConfiguration } from './services/baseApi';
 import { cacheService } from './services/cacheService';
+import { initSentry, sentryErrorHandler, sentryContextMiddleware } from './config/sentry';
 
 const app = express();
+
+// Initialize Sentry monitoring FIRST (before other middleware)
+initSentry(app);
 const PORT = process.env.PORT || 5000;
 
 // Security middleware
@@ -72,6 +76,9 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
+// Sentry context middleware (adds request details to error reports)
+app.use(sentryContextMiddleware());
+
 // API routes
 app.use('/api/auth', authRoutes); // Authentication routes
 app.use('/api', extractionRoutes);
@@ -97,6 +104,9 @@ app.get('/', async (req, res) => {
 
 // 404 handler
 app.use(notFound);
+
+// Sentry error handler (MUST be before other error handlers)
+app.use(sentryErrorHandler());
 
 // Error handling middleware
 app.use(errorHandler);

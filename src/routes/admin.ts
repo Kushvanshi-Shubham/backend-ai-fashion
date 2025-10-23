@@ -35,6 +35,7 @@ router.delete('/sub-departments/:id', adminController.deleteSubDepartment);
 // ═══════════════════════════════════════════════════════
 router.get('/categories', adminController.getAllCategories);
 router.get('/categories/:id', adminController.getCategoryById);
+router.get('/categories/:id/all-attributes', adminController.getCategoryWithAllAttributes); // Get with ALL 44 master attributes
 router.get('/categories/:code/attributes', adminController.getCategoryByCode); // Get by code with attributes
 router.post('/categories', adminController.createCategory);
 router.put('/categories/:id', adminController.updateCategory);

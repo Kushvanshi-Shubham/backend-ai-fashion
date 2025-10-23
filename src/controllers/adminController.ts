@@ -407,6 +407,82 @@ export const getCategoryByCode = async (req: Request, res: Response): Promise<vo
   }
 };
 
+/**
+ * Get category with ALL master attributes (showing enabled/disabled status)
+ * This is used by the admin panel matrix to show all 44 attributes with toggles
+ */
+export const getCategoryWithAllAttributes = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const categoryId = parseInt(id);
+
+    // Get the category
+    const category = await prisma.category.findUnique({
+      where: { id: categoryId },
+      include: {
+        subDepartment: {
+          include: {
+            department: true,
+          },
+        },
+      },
+    });
+
+    if (!category) {
+      res.status(404).json({ success: false, error: `Category with ID ${id} not found` });
+      return;
+    }
+
+    // Get ALL master attributes
+    const allAttributes = await prisma.masterAttribute.findMany({
+      orderBy: { displayOrder: 'asc' },
+      include: {
+        allowedValues: {
+          where: { isActive: true },
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
+    });
+
+    // Get existing category-attribute mappings
+    const existingMappings = await prisma.categoryAttribute.findMany({
+      where: { categoryId: categoryId },
+    });
+
+    // Create a map for quick lookup
+    const mappingMap = new Map(
+      existingMappings.map(m => [m.attributeId, m])
+    );
+
+    // Merge: for each master attribute, check if mapping exists
+    const attributesWithStatus = allAttributes.map(attr => {
+      const mapping = mappingMap.get(attr.id);
+      return {
+        attributeId: attr.id,
+        attributeKey: attr.key,
+        attributeLabel: attr.label,
+        attributeType: attr.type,
+        allowedValues: attr.allowedValues,
+        isEnabled: mapping?.isEnabled || false,
+        isRequired: mapping?.isRequired || false,
+        displayOrder: mapping?.displayOrder || attr.displayOrder,
+        defaultValue: mapping?.defaultValue || null,
+        hasMapping: !!mapping,  // NEW: indicates if mapping exists in DB
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        ...category,
+        allAttributes: attributesWithStatus,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 export const createCategory = async (req: Request, res: Response): Promise<void> => {
   try {
     const validated = CategorySchema.parse(req.body);
@@ -511,25 +587,32 @@ export const updateCategoryAttributeMapping = async (req: Request, res: Response
     const { categoryId, attributeId } = req.params;
     const { isEnabled, isRequired, displayOrder, defaultValue } = req.body;
     
-    const mapping = await prisma.categoryAttribute.updateMany({
+    // Use upsert to create if doesn't exist, update if exists
+    const mapping = await prisma.categoryAttribute.upsert({
       where: {
-        categoryId: parseInt(categoryId),
-        attributeId: parseInt(attributeId),
+        categoryId_attributeId: {
+          categoryId: parseInt(categoryId),
+          attributeId: parseInt(attributeId),
+        },
       },
-      data: {
+      update: {
         ...(isEnabled !== undefined && { isEnabled }),
         ...(isRequired !== undefined && { isRequired }),
         ...(displayOrder !== undefined && { displayOrder }),
         ...(defaultValue !== undefined && { defaultValue }),
+        updatedAt: new Date(),
+      },
+      create: {
+        categoryId: parseInt(categoryId),
+        attributeId: parseInt(attributeId),
+        isEnabled: isEnabled ?? false,
+        isRequired: isRequired ?? false,
+        displayOrder: displayOrder ?? 0,
+        defaultValue: defaultValue ?? null,
       },
     });
     
-    if (mapping.count === 0) {
-      res.status(404).json({ success: false, error: 'Mapping not found' });
-      return;
-    }
-    
-    res.json({ success: true, message: 'Mapping updated successfully' });
+    res.json({ success: true, data: mapping, message: 'Mapping updated successfully' });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
