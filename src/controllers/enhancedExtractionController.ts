@@ -165,13 +165,6 @@ export class EnhancedExtractionController {
       // 🚫 CACHING DISABLED - No caching of extraction results
       // const shouldCacheResult = false; // Disabled caching
 
-      // 🔍 DEBUG: Log attribute keys to check hyphen/underscore format
-      console.log('🔍 [BACKEND] Attribute keys being returned:', Object.keys(result.attributes || {}));
-      console.log('🔍 [BACKEND] fab_yarn-01:', result.attributes['fab_yarn-01']);
-      console.log('🔍 [BACKEND] fab_yarn_01:', result.attributes['fab_yarn_01']);
-      console.log('🔍 [BACKEND] fab_weave-02:', result.attributes['fab_weave-02']);
-      console.log('🔍 [BACKEND] fab_weave_02:', result.attributes['fab_weave_02']);
-
       console.log(`✅ Enhanced Base64 VLM Complete - Confidence: ${result.confidence}%, Discoveries: ${result.discoveries?.length || 0}`);
 
       res.json({
