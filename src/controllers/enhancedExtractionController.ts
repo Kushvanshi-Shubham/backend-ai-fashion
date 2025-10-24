@@ -141,28 +141,10 @@ export class EnhancedExtractionController {
 
       console.log(`🎯 Enhanced Base64 VLM Extraction - Discovery: ${discoveryMode}, Schema: ${schema.length} attrs, Force Refresh: ${forceRefresh}`);
 
-      // 💾 Check cache first (skip if discovery mode, custom prompt, or force refresh requested)
-      const shouldUseCache = !discoveryMode && !customPrompt && !forceRefresh;
+      // � CACHING DISABLED - Always fetch fresh results
+      const shouldUseCache = false; // Disabled caching
       
-      if (shouldUseCache) {
-        const cachedResult = await cacheService.get(image, schema, categoryName);
-        if (cachedResult) {
-          console.log(`⚡ Cache HIT - Returning cached result instantly`);
-          res.json({
-            success: true,
-            data: cachedResult,
-            metadata: {
-              enhancedMode: true,
-              vlmPipeline: 'multi-model',
-              fashionSpecialized: true,
-              cached: true,
-              cacheHit: true
-            },
-            timestamp: Date.now()
-          });
-          return;
-        }
-      }
+      // Cache checking code removed - always perform fresh extraction
 
       // Create enhanced fashion extraction request
       const vlmRequest: FashionExtractionRequest = {
@@ -180,14 +162,15 @@ export class EnhancedExtractionController {
       // Extract using Multi-VLM pipeline
       const result = await this.vlmService.extractFashionAttributes(vlmRequest);
 
-      // 💾 Cache the result - always cache fresh extractions (except discovery mode)
-      const shouldCacheResult = !discoveryMode && !customPrompt;
-      if (shouldCacheResult) {
-        await cacheService.set(image, schema, result, categoryName);
-        if (forceRefresh) {
-          console.log(`🔄 Force Refresh - Updated cache with fresh VLM result`);
-        }
-      }
+      // 🚫 CACHING DISABLED - No caching of extraction results
+      // const shouldCacheResult = false; // Disabled caching
+
+      // 🔍 DEBUG: Log attribute keys to check hyphen/underscore format
+      console.log('🔍 [BACKEND] Attribute keys being returned:', Object.keys(result.attributes || {}));
+      console.log('🔍 [BACKEND] fab_yarn-01:', result.attributes['fab_yarn-01']);
+      console.log('🔍 [BACKEND] fab_yarn_01:', result.attributes['fab_yarn_01']);
+      console.log('🔍 [BACKEND] fab_weave-02:', result.attributes['fab_weave-02']);
+      console.log('🔍 [BACKEND] fab_weave_02:', result.attributes['fab_weave_02']);
 
       console.log(`✅ Enhanced Base64 VLM Complete - Confidence: ${result.confidence}%, Discoveries: ${result.discoveries?.length || 0}`);
 

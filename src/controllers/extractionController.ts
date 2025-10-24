@@ -98,25 +98,10 @@ export class ExtractionController {
       // 🔧 OPTIMIZED: Use single method with discovery flag for consistency
       console.log(`🔍 Extraction Request - Discovery Mode: ${discoveryMode}, Schema Items: ${schema.length}, Force Refresh: ${forceRefresh}`);
       
-      // 💾 Check cache first (skip if discovery mode, custom prompt, or force refresh requested)
-      const shouldUseCache = !discoveryMode && !customPrompt && !forceRefresh;
+      // � CACHING DISABLED - Always fetch fresh results
+      const shouldUseCache = false; // Disabled caching
       
-      if (shouldUseCache) {
-        const cachedResult = await cacheService.get(image, schema, categoryName);
-        if (cachedResult) {
-          console.log(`⚡ Cache HIT - Returning cached result (Legacy API)`);
-          res.json({
-            success: true,
-            data: cachedResult,
-            metadata: {
-              cached: true,
-              cacheHit: true
-            },
-            timestamp: Date.now()
-          });
-          return;
-        }
-      }
+      // Cache checking code removed - always perform fresh extraction
       
       const result = await this.extractionService.extractWithDiscovery(
         image,
@@ -125,14 +110,8 @@ export class ExtractionController {
         discoveryMode || false // Ensure boolean, default to false
       );
 
-      // 💾 Cache the result - always cache fresh extractions (except discovery mode)
-      const shouldCacheResult = !discoveryMode && !customPrompt;
-      if (shouldCacheResult) {
-        await cacheService.set(image, schema, result, categoryName);
-        if (forceRefresh) {
-          console.log(`🔄 Force Refresh - Updated cache with fresh result`);
-        }
-      }
+      // � CACHING DISABLED - No caching of extraction results
+      // const shouldCacheResult = false; // Disabled caching
 
       console.log('✅ Extraction successful, sending result with attributes:', Object.keys(result.attributes).length);
       console.log('📊 Sample attribute data:', Object.entries(result.attributes).slice(0, 2));
