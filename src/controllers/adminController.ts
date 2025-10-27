@@ -7,7 +7,10 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '../generated/prisma';
 import { z } from 'zod';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  log: [], // Disable logging to save memory
+  errorFormat: 'minimal', // Minimal error format to save memory
+});
 
 // ═══════════════════════════════════════════════════════
 // VALIDATION SCHEMAS

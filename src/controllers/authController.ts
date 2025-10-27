@@ -8,7 +8,10 @@ import { PrismaClient } from '../generated/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  log: [], // Disable logging to save memory
+  errorFormat: 'minimal', // Minimal error format to save memory
+});
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 export const login = async (req: Request, res: Response): Promise<void> => {

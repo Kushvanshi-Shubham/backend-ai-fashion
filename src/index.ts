@@ -5,7 +5,6 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import extractionRoutes from './routes/extraction';
 import vlmExtractionRoutes from './routes/vlmExtraction';
@@ -14,16 +13,9 @@ import authRoutes from './routes/auth';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { checkApiConfiguration } from './services/baseApi';
 import { cacheService } from './services/cacheService';
-import { initSentry, sentryErrorHandler, sentryContextMiddleware } from './config/sentry';
 
 const app = express();
-
-// Initialize Sentry monitoring FIRST (before other middleware)
-initSentry(app);
 const PORT = process.env.PORT || 5000;
-
-// Security middleware
-app.use(helmet());
 
 // Rate limiting middleware
 const limiter = rateLimit({
@@ -76,9 +68,6 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
-// Sentry context middleware (adds request details to error reports)
-app.use(sentryContextMiddleware());
-
 // API routes
 app.use('/api/auth', authRoutes); // Authentication routes
 app.use('/api', extractionRoutes);
@@ -87,26 +76,33 @@ app.use('/api/admin', adminRoutes); // Admin hierarchy management routes
 
 // Root route
 app.get('/', async (req, res) => {
-  const cacheStats = await cacheService.getStats();
-  
-  res.json({
-    message: 'AI Fashion Extractor Backend API',
-    version: '2.0.0-vlm',
-    status: 'running',
-    cache: {
-      enabled: cacheStats.enabled,
-      connected: cacheStats.connected,
-      entries: cacheStats.totalKeys
-    },
-    timestamp: new Date().toISOString()
-  });
+  try {
+    const cacheStats = await cacheService.getStats();
+    
+    res.json({
+      message: 'AI Fashion Extractor Backend API',
+      version: '2.0.0-vlm',
+      status: 'running',
+      cache: {
+        enabled: cacheStats.enabled,
+        connected: cacheStats.connected,
+        entries: cacheStats.totalKeys || 0
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.json({
+      message: 'AI Fashion Extractor Backend API',
+      version: '2.0.0-vlm',
+      status: 'running',
+      cache: { enabled: false, connected: false, entries: 0 },
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // 404 handler
 app.use(notFound);
-
-// Sentry error handler (MUST be before other error handlers)
-app.use(sentryErrorHandler());
 
 // Error handling middleware
 app.use(errorHandler);
