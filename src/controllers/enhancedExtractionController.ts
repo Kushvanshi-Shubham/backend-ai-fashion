@@ -2,11 +2,13 @@ import { Request, Response, NextFunction } from 'express';
 import { VLMService } from '../services/vlm/vlmService';
 import { ImageProcessor } from '../utils/imageProcessor';
 import { cacheService } from '../services/cacheService';
+import { SchemaService } from '../services/schemaService';
 import type { SchemaItem, ExtractionRequest } from '../types/extraction';
 import type { FashionExtractionRequest } from '../types/vlm';
 
 export class EnhancedExtractionController {
   private vlmService = new VLMService();
+  private schemaService = new SchemaService();
 
   /**
    * 🚀 Enhanced Multi-VLM Fashion Extraction from Upload
@@ -329,4 +331,203 @@ export class EnhancedExtractionController {
       return 'Multiple systems down - limited functionality, check configurations';
     }
   }
+
+  /**
+   * 🎯 Enhanced Category-Based Extraction (Database-Driven Schema)
+   * Loads schema from database based on category code
+   */
+  extractFromCategoryCode = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { 
+        image, 
+        categoryCode, 
+        vendorName, 
+        designNumber, 
+        costPrice, 
+        sellingPrice,
+        notes,
+        discoveryMode,
+        customPrompt
+      } = req.body;
+
+      // Validate required fields
+      if (!image) {
+        res.status(400).json({
+          success: false,
+          error: 'Base64 image is required',
+          timestamp: Date.now()
+        });
+        return;
+      }
+
+      if (!categoryCode) {
+        res.status(400).json({
+          success: false,
+          error: 'Category code is required',
+          timestamp: Date.now()
+        });
+        return;
+      }
+
+      console.log(`🎯 Category-Based Extraction Started - Code: ${categoryCode}`);
+
+      // Load schema from database
+      const { category, schema, stats } = await this.schemaService.getCategorySchema(categoryCode);
+
+      console.log(`📊 Category: ${category.name} (${category.department.name} → ${category.subDepartment.name})`);
+      console.log(`📋 Schema: ${stats.totalAttributes} attributes (${stats.aiExtractableCount} AI-extractable, ${stats.requiredCount} required)`);
+
+      // Create enhanced fashion extraction request
+      const vlmRequest: FashionExtractionRequest = {
+        image,
+        schema,
+        categoryName: category.name,
+        customPrompt,
+        discoveryMode: discoveryMode === 'true' || discoveryMode === true || false,
+        department: category.department.name.toLowerCase() as any,
+        subDepartment: category.subDepartment.code as any
+      };
+
+      // Extract using Multi-VLM pipeline (existing service - no changes)
+      const result = await this.vlmService.extractFashionAttributes(vlmRequest);
+
+      console.log(`✅ Category-Based Extraction Complete - Confidence: ${result.confidence}%, Time: ${result.processingTime}ms`);
+
+      // Merge extracted metadata with provided metadata (prefer extracted when available)
+      const finalMetadata = {
+        vendorName: result.extractedMetadata?.vendorName || vendorName || null,
+        designNumber: result.extractedMetadata?.designNumber || designNumber || null,
+        costPrice: result.extractedMetadata?.price || (costPrice ? parseFloat(costPrice) : null),
+        sellingPrice: sellingPrice ? parseFloat(sellingPrice) : null,
+        pptNumber: result.extractedMetadata?.pptNumber || null,
+        notes,
+        extractionDate: new Date().toISOString()
+      };
+
+      // Log if AI extracted metadata from image
+      if (result.extractedMetadata) {
+        console.log(`🏷️ AI extracted metadata from tag/board:`, result.extractedMetadata);
+      }
+
+      // Return result with category info and metadata
+      res.json({
+        success: true,
+        data: {
+          ...result,
+          category: {
+            code: category.code,
+            name: category.name,
+            fullForm: category.fullForm,
+            department: category.department.name,
+            subDepartment: category.subDepartment.name,
+            fabricDivision: category.fabricDivision
+          },
+          metadata: finalMetadata,
+          schemaStats: stats
+        },
+        timestamp: Date.now()
+      });
+
+    } catch (error: any) {
+      console.error('❌ Category-based extraction failed:', error);
+      
+      if (error.message?.includes('not found')) {
+        res.status(404).json({
+          success: false,
+          error: error.message,
+          timestamp: Date.now()
+        });
+        return;
+      }
+      
+      next(error);
+    }
+  };
+
+  /**
+   * 📂 Get Category Hierarchy for Dropdown
+   */
+  getCategoryHierarchy = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      console.log('📂 Fetching category hierarchy...');
+      const hierarchy = await this.schemaService.getCategoryHierarchy();
+      
+      console.log(`✅ Hierarchy loaded: ${hierarchy.stats.totalDepartments} depts, ${hierarchy.stats.totalSubDepartments} sub-depts, ${hierarchy.stats.totalCategories} categories`);
+      
+      res.json({
+        success: true,
+        data: hierarchy,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      console.error('❌ Failed to fetch hierarchy:', error);
+      next(error);
+    }
+  };
+
+  /**
+   * 🔍 Get Category Schema (for preview/debugging)
+   */
+  getCategorySchema = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { code } = req.params;
+      
+      console.log(`🔍 Fetching schema for category: ${code}`);
+      const schemaData = await this.schemaService.getCategorySchema(code);
+      
+      console.log(`✅ Schema loaded: ${schemaData.stats.totalAttributes} attributes`);
+      
+      res.json({
+        success: true,
+        data: schemaData,
+        timestamp: Date.now()
+      });
+    } catch (error: any) {
+      console.error(`❌ Failed to fetch schema for ${req.params.code}:`, error);
+      
+      if (error.message?.includes('not found')) {
+        res.status(404).json({
+          success: false,
+          error: error.message,
+          timestamp: Date.now()
+        });
+        return;
+      }
+      
+      next(error);
+    }
+  };
+
+  /**
+   * 🔎 Search Categories
+   */
+  searchCategories = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { q, limit } = req.query;
+      
+      if (!q || typeof q !== 'string') {
+        res.status(400).json({
+          success: false,
+          error: 'Query parameter "q" is required',
+          timestamp: Date.now()
+        });
+        return;
+      }
+      
+      console.log(`🔎 Searching categories: "${q}"`);
+      const results = await this.schemaService.searchCategories(q, limit ? parseInt(limit as string) : 20);
+      
+      console.log(`✅ Found ${results.length} categories`);
+      
+      res.json({
+        success: true,
+        data: results,
+        count: results.length,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      console.error('❌ Search failed:', error);
+      next(error);
+    }
+  };
 }

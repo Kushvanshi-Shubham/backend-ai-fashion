@@ -27,11 +27,30 @@ export class OpenAIVLMProvider extends BaseApiService implements VLMProvider {
       const prompt = this.buildPrompt(request);
       const response = await this.callVisionAPI(request.image, prompt);
       
-      const attributes = await this.parseResponse(response.content, request.schema);
+      const { attributes, extractedMetadata } = await this.parseResponse(response.content, request.schema);
       const confidence = this.calculateConfidence(attributes);
 
       const processingTime = Date.now() - startTime;
-      console.log(`✅ [OpenAI GPT-4V] Extraction complete: ${Object.keys(attributes).length} attributes, ${processingTime}ms`);
+      
+      // Count non-null attributes
+      const extractedCount = Object.values(attributes).filter(attr => attr !== null).length;
+      console.log(`✅ [OpenAI GPT-4V] Extraction complete: ${extractedCount}/${Object.keys(attributes).length} attributes extracted, ${processingTime}ms`);
+      
+      // Log extracted metadata if found
+      if (extractedMetadata) {
+        console.log(`🏷️ [OpenAI GPT-4V] Extracted metadata from tag:`, extractedMetadata);
+      }
+      
+      // Debug: Log sample of extracted attributes
+      const sampleAttrs = Object.entries(attributes)
+        .filter(([_, v]) => v !== null)
+        .slice(0, 5)
+        .map(([k, v]) => `${k}=${v?.rawValue}`)
+        .join(', ');
+      if (sampleAttrs) {
+        console.log(`📝 [OpenAI GPT-4V] Sample attributes: ${sampleAttrs}`);
+      }
+      
       console.log(`📊 [OpenAI GPT-4V] Performance: Confidence=${confidence}%, Tokens=${response.tokensUsed || 0}`);
 
       return {
@@ -46,7 +65,8 @@ export class OpenAIVLMProvider extends BaseApiService implements VLMProvider {
           highConfidence: 0, 
           schemaPromotable: 0,
           uniqueKeys: 0
-        }
+        },
+        extractedMetadata: extractedMetadata || undefined
       };
     } catch (error) {
       console.error(`❌ [OpenAI GPT-4V] Extraction failed:`, error instanceof Error ? error.message : 'Unknown error');
@@ -86,20 +106,64 @@ export class OpenAIVLMProvider extends BaseApiService implements VLMProvider {
 
     return `${basePrompt}${categoryContext}
 
-EXTRACT THESE ATTRIBUTES:
+📋 YOU MUST EXTRACT ALL ${schema.length} ATTRIBUTES - BE THOROUGH!
+
+STEP 1: READ TAG/BOARD (if visible)
+Extract EXACTLY as written:
+- Vendor Name, Design Number, Rate/Price, PPT Number, GSM
+
+STEP 2: ANALYZE GARMENT - EXTRACT EVERY ATTRIBUTE BELOW:
 ${schemaDefinition}
 
 ${modeInstructions}
 
-CRITICAL: Return valid JSON only:
+🎯 MANDATORY EXTRACTION GUIDELINES:
+
+FOR EVERY ATTRIBUTE:
+• COLOR: Describe exact shade visible (White, Grey, Blue, Black, etc.)
+• FABRIC/MATERIAL: Infer from texture/sheen (Cotton, Polyester, Blend, Knit)
+• FIT: Observe garment cut (Regular, Slim, Relaxed, Oversized)
+• SLEEVE: Clearly visible (Half Sleeve, Full Sleeve, Sleeveless, 3/4)
+• NECKLINE: Check collar type (Round, V-Neck, Crew, Polo, Henley)
+• PATTERN: Look for prints/designs (Solid, Striped, Printed, Graphic)
+• STYLE: Overall design (Casual, Formal, Sports, Basic)
+• LENGTH: Garment length (Regular, Long, Short, Cropped)
+• CONSTRUCTION: Quality indicators (Single Jersey, Double Jersey, Rib)
+• YARN/THREAD: If visible on tag or from texture
+• WASH/FINISH: Surface treatment (Enzyme Wash, Stone Wash, Plain)
+• BRAND/LOGO: Check for visible branding
+• SIZE: From tag if visible (S, M, L, XL, XXL)
+
+CONFIDENCE LEVELS:
+• 90-100%: Clearly visible or on tag
+• 75-89%: Strong visual inference
+• 60-74%: Educated guess from context
+• Below 60%: Only if truly uncertain
+
+CRITICAL RULES:
+1. EXTRACT ALL ${schema.length} ATTRIBUTES - don't skip any!
+2. If you can see the garment, you MUST provide values
+3. Use allowed values list EXACTLY (no variations)
+4. Better to guess with 60% confidence than leave null
+5. Only null if attribute doesn't apply to this garment type
+
+JSON RESPONSE FORMAT:
 {
-  "attribute_key": {
-    "rawValue": "exact observation",
-    "schemaValue": "normalized value",
-    "visualConfidence": 85,
-    "reasoning": "brief explanation"
+  "metadata": {
+    "vendorName": "from tag" or null,
+    "designNumber": "from tag" or null,
+    "price": "from tag" or null,
+    "pptNumber": "from tag" or null
+  },
+  "attributes": {
+    "color": {"rawValue": "White", "schemaValue": "White", "visualConfidence": 95, "reasoning": "clearly visible"},
+    "fabric": {"rawValue": "Cotton", "schemaValue": "Cotton", "visualConfidence": 80, "reasoning": "soft texture visible"},
+    ... (CONTINUE FOR ALL ${schema.length} ATTRIBUTES)
   }
-}`;
+}
+
+⚠️ IMPORTANT: Extract ALL attributes. If garment is visible, analyze it completely!
+- Make educated guesses for non-visible attributes with lower confidence`;
   }
 
   private getModeSpecificInstructions(mode: string): string {
@@ -161,32 +225,67 @@ CRITICAL: Return valid JSON only:
     };
   }
 
-  private async parseResponse(content: string, schema: any[]): Promise<AttributeData> {
+  private async parseResponse(content: string, schema: any[]): Promise<{ attributes: AttributeData; extractedMetadata?: any }> {
     try {
       // Remove markdown code blocks if present
       const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
       const parsed = JSON.parse(cleanContent);
       
+      // Extract metadata if present in new format
+      const extractedMetadata = parsed.metadata || null;
+      
+      // Handle both old format (flat) and new format (nested in attributes)
+      const attributeSource = parsed.attributes || parsed;
+      
       // Validate and structure the response
       const attributes: AttributeData = {};
       
+      // Map metadata fields to attributes if they exist in schema
+      const metadataMapping: Record<string, string> = {
+        'vendorName': 'vendor_name',
+        'designNumber': 'design_number',
+        'pptNumber': 'ppt_number',
+        'price': 'rate'
+      };
+      
       for (const schemaItem of schema) {
         const key = schemaItem.key;
-        if (parsed[key]) {
+        
+        // First check if attribute exists in normal response
+        if (attributeSource[key]) {
           attributes[key] = {
-            rawValue: parsed[key].rawValue || null,
-            schemaValue: parsed[key].schemaValue || null,
-            visualConfidence: parsed[key].visualConfidence || 0,
+            rawValue: attributeSource[key].rawValue || null,
+            schemaValue: attributeSource[key].schemaValue || null,
+            visualConfidence: attributeSource[key].visualConfidence || 0,
             isNewDiscovery: false,
-            mappingConfidence: parsed[key].visualConfidence || 0,
-            reasoning: parsed[key].reasoning
+            mappingConfidence: attributeSource[key].visualConfidence || 0,
+            reasoning: attributeSource[key].reasoning
           };
-        } else {
+        }
+        // If not found but it's a metadata attribute, map from extractedMetadata
+        else if (extractedMetadata && Object.values(metadataMapping).includes(key)) {
+          const metadataKey = Object.keys(metadataMapping).find(k => metadataMapping[k] === key);
+          const value = metadataKey ? extractedMetadata[metadataKey] : null;
+          
+          if (value) {
+            attributes[key] = {
+              rawValue: value,
+              schemaValue: value,
+              visualConfidence: 90, // High confidence for tag reading
+              isNewDiscovery: false,
+              mappingConfidence: 90,
+              reasoning: 'Extracted from product tag/board'
+            };
+          } else {
+            attributes[key] = null;
+          }
+        }
+        else {
           attributes[key] = null;
         }
       }
       
-      return attributes;
+      return { attributes, extractedMetadata };
     } catch (error) {
       throw new Error(`Failed to parse OpenAI response: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

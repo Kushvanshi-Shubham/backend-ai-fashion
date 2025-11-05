@@ -54,6 +54,12 @@ export interface DiscoveryStats {
 export interface EnhancedExtractionResult extends ExtractionResult {
   discoveries?: DiscoveredAttribute[];
   discoveryStats?: DiscoveryStats;
+  extractedMetadata?: {
+    vendorName?: string | null;
+    designNumber?: string | null;
+    price?: string | null;
+    pptNumber?: string | null;
+  };
   errorDetails?: {
     stage: 'compression' | 'api' | 'parsing';
     originalError: string;
