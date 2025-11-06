@@ -83,7 +83,7 @@ export class ExtractionService {
       } else {
         // Use lightweight parsing for basic extraction
         attributes = await this.responseParser.parseResponse(apiResponse.content, schema);
-        console.log(`⚡ Basic Extraction: ${Object.keys(attributes).length} attributes extracted`);
+        console.log(` Basic Extraction: ${Object.keys(attributes).length} attributes extracted`);
       }
 
       const processingTime = Date.now() - startTime;

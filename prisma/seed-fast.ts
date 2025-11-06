@@ -1,5 +1,5 @@
 /**
- * 🚀 FAST DATABASE SEED SCRIPT
+ * FAST DATABASE SEED SCRIPT
  * Uses batch operations for 100x speed improvement
  */
 
@@ -31,7 +31,7 @@ try {
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🚀 Starting FAST database seed...\n');
+  console.log('Starting FAST database seed...\n');
   
   try {
     // Step 1: Extract unique departments

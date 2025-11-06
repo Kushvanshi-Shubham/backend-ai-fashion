@@ -21,7 +21,7 @@ const { CATEGORY_DEFINITIONS } = require(categoryDefinitionsPath);
 console.log(`✅ Loaded ${CATEGORY_DEFINITIONS.length} category definitions\n`);
 
 async function seedCategoryAttributeMappings() {
-  console.log('🚀 Starting Category-Attribute Mappings Import...\n');
+  console.log('Starting Category-Attribute Mappings Import...\n');
   
   let totalMappings = 0;
   let imported = 0;

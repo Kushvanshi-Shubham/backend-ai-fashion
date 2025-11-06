@@ -24,7 +24,7 @@ async function checkData() {
     
     if (counts.categoryAttributes === 0) {
       console.log('❌ CategoryAttribute mappings are MISSING!');
-      console.log('💡 Run: npm run seed\n');
+      console.log(' Run: npm run seed\n');
     } else {
       console.log('✅ All data seeded successfully!\n');
     }

@@ -89,7 +89,7 @@ const METADATA_ATTRIBUTES = [
 ];
 
 async function main() {
-  console.log('🚀 Adding metadata attributes to master_attributes table...\n');
+  console.log('Adding metadata attributes to master_attributes table...\n');
 
   for (const attr of METADATA_ATTRIBUTES) {
     try {

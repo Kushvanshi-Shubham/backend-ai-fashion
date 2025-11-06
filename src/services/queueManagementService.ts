@@ -1,4 +1,4 @@
-// 🚀 Queue Management Service - Backend handles all job processing logic
+// Queue Management Service - Backend handles all job processing logic
 
 import { IExtractionRepository } from '../repositories/interfaces/IExtractionRepository';
 import { InMemoryExtractionRepository } from '../repositories/implementations/InMemoryExtractionRepository';
@@ -47,7 +47,7 @@ export class QueueManagementService {
     this.startProcessing();
   }
 
-  // 🎯 Add job to queue with intelligent priority and token estimation
+  // Add job to queue with intelligent priority and token estimation
   async addJob(jobData: {
     imageData: string;
     schema: any[];
@@ -81,7 +81,7 @@ export class QueueManagementService {
     return job.id;
   }
 
-  // 🎯 Get job status for frontend polling
+  // Get job status for frontend polling
   async getJobStatus(jobId: string) {
     const job = await this.repository.getJob(jobId);
     if (!job) return null;
@@ -103,7 +103,7 @@ export class QueueManagementService {
     };
   }
 
-  // 🎯 Get queue overview for admin/monitoring
+  // Get queue overview for admin/monitoring
   async getQueueOverview() {
     const stats = await this.repository.getQueueStats();
     const tokenUsageToday = await this.repository.getTotalTokensUsedToday();
@@ -124,7 +124,7 @@ export class QueueManagementService {
     };
   }
 
-  // 🎯 Process jobs from queue
+  // Process jobs from queue
   private async startProcessing() {
     if (this.processingInterval) {
       clearInterval(this.processingInterval);
@@ -134,7 +134,7 @@ export class QueueManagementService {
       await this.processNextJob();
     }, 2000); // Check every 2 seconds
 
-    console.log('🚀 Queue processing started');
+    console.log('Queue processing started');
   }
 
   private async processNextJob() {
@@ -219,7 +219,7 @@ export class QueueManagementService {
     }
   }
 
-  // 🎯 Token and capacity management
+  // Token and capacity management
   private canAcceptNewJob(): boolean {
     return (
       this.activeJobs.size < this.config.maxConcurrentJobs &&
@@ -253,7 +253,7 @@ export class QueueManagementService {
     };
   }
 
-  // 🎯 Utility methods
+  // Utility methods
   private estimateTokenUsage(
     schema: any[], 
     department?: string, 
@@ -303,7 +303,7 @@ export class QueueManagementService {
     return tokens * (costs[model] || costs['gpt-4o']);
   }
 
-  // 🎯 Cleanup and shutdown
+  // Cleanup and shutdown
   public async shutdown() {
     if (this.processingInterval) {
       clearInterval(this.processingInterval);

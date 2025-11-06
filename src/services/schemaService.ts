@@ -4,7 +4,7 @@ export class SchemaService {
   private prisma = new PrismaClient();
 
   /**
-   * 🎯 Load category schema from database
+   * Load category schema from database
    * Returns category info + attributes with allowed values
    */
   async getCategorySchema(categoryCode: string) {
@@ -70,6 +70,7 @@ export class SchemaService {
         merchandiseCode: category.merchandiseCode,
         merchandiseDesc: category.merchandiseDesc,
         fabricDivision: category.fabricDivision,
+        garmentType: category.garmentType, // NEW: For prompt optimization
         department: {
           code: category.subDepartment.department.code,
           name: category.subDepartment.department.name

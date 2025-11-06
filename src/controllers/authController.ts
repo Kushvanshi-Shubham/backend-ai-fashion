@@ -14,6 +14,76 @@ const prisma = new PrismaClient({
 });
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
+export const register = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, password, name } = req.body;
+
+    // Validation
+    if (!email || !password || !name) {
+      res.status(400).json({ success: false, error: 'Email, password, and name are required' });
+      return;
+    }
+
+    if (password.length < 6) {
+      res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
+      return;
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (existingUser) {
+      res.status(409).json({ success: false, error: 'User already exists with this email' });
+      return;
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user
+    const user = await prisma.user.create({
+      data: {
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        name,
+        role: 'USER', // Default role
+        isActive: true,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+      },
+    });
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        id: user.id, 
+        email: user.email, 
+        role: user.role,
+        name: user.name,
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({
+      success: true,
+      data: {
+        token,
+        user,
+      },
+    });
+  } catch (error: any) {
+    console.error('Registration error:', error);
+    res.status(500).json({ success: false, error: 'Registration failed' });
+  }
+};
+
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
@@ -111,5 +181,53 @@ export const verifyToken = async (req: Request, res: Response): Promise<void> =>
     res.json({ success: true, data: { user } });
   } catch (error: any) {
     res.status(401).json({ success: false, error: 'Invalid token' });
+  }
+};
+
+/**
+ * Get current user info (protected route)
+ * Requires authentication middleware
+ */
+export const getCurrentUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // User is already attached by authenticate middleware
+    if (!req.user) {
+      res.status(401).json({ success: false, error: 'Not authenticated' });
+      return;
+    }
+
+    // Fetch fresh user data from database
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        lastLogin: true,
+      },
+    });
+
+    if (!user) {
+      res.status(404).json({ success: false, error: 'User not found' });
+      return;
+    }
+
+    res.json({ 
+      success: true, 
+      data: {
+        id: user.id.toString(),
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        createdAt: user.createdAt.toISOString(),
+        lastLogin: user.lastLogin?.toISOString(),
+      } 
+    });
+  } catch (error: any) {
+    console.error('Get current user error:', error);
+    res.status(500).json({ success: false, error: 'Failed to get user info' });
   }
 };

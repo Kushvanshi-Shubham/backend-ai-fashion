@@ -36,7 +36,7 @@ const upload = multer({
   }
 });
 
-// 🚀 Enhanced VLM Extraction Routes
+// Enhanced VLM Extraction Routes
 
 // VLM System Health Check (no rate limiting)
 router.get('/vlm/health', enhancedController.vlmHealthCheck);
@@ -131,7 +131,7 @@ router.get('/vlm/info', (req, res) => {
   });
 });
 
-// 🎯 Fashion-Specific Routes
+// Fashion-Specific Routes
 
 router.get('/vlm/fashion/categories', (req, res) => {
   res.json({

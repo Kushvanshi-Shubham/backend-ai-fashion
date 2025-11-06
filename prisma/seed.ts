@@ -58,8 +58,8 @@ try {
   }
 } catch (error) {
   console.error('❌ Error loading data files:', error);
-  console.log('\n💡 Make sure ts-node can transpile the TypeScript files');
-  console.log('💡 Frontend path:', frontendPath);
+  console.log('\n Make sure ts-node can transpile the TypeScript files');
+  console.log(' Frontend path:', frontendPath);
   process.exit(1);
 }
 

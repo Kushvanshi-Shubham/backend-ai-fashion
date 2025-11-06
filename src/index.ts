@@ -6,11 +6,20 @@ dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
+
+// Routes
 import extractionRoutes from './routes/extraction';
 import vlmExtractionRoutes from './routes/vlmExtraction';
 import adminRoutes from './routes/admin';
 import authRoutes from './routes/auth';
+import userExtractionRoutes from './routes/userExtraction';
+
+// Middleware
 import { errorHandler, notFound } from './middleware/errorHandler';
+import { authenticate, requireAdmin, requireUser } from './middleware/auth';
+import { auditLog, flushAuditLogsOnShutdown } from './middleware/auditLogger';
+
+// Services
 import { checkApiConfiguration } from './services/baseApi';
 import { cacheService } from './services/cacheService';
 
@@ -68,11 +77,28 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
-// API routes
-app.use('/api/auth', authRoutes); // Authentication routes
-app.use('/api', extractionRoutes);
-app.use('/api', vlmExtractionRoutes); // Enhanced VLM routes
-app.use('/api/admin', adminRoutes); // Admin hierarchy management routes
+// ═══════════════════════════════════════════════════════
+// PUBLIC ROUTES (No authentication required)
+// ═══════════════════════════════════════════════════════
+app.use('/api/auth', authRoutes); // Login, verify token
+
+// ═══════════════════════════════════════════════════════
+// ADMIN ROUTES (Admin role required + Audit logging)
+// ═══════════════════════════════════════════════════════
+app.use('/api/admin', authenticate, requireAdmin, auditLog, adminRoutes);
+
+// ═══════════════════════════════════════════════════════
+// USER ROUTES (Authentication required + Audit logging)
+// ═══════════════════════════════════════════════════════
+app.use('/api/user', authenticate, requireUser, auditLog, userExtractionRoutes);
+
+// ═══════════════════════════════════════════════════════
+// LEGACY ROUTES (Backward compatibility - TO BE DEPRECATED)
+// ═══════════════════════════════════════════════════════
+// These routes will be removed in future versions
+// All clients should migrate to /api/user/* endpoints
+app.use('/api/extract', authenticate, requireUser, extractionRoutes);
+app.use('/api/vlm', authenticate, requireUser, vlmExtractionRoutes);
 
 // Root route
 app.get('/', async (req, res) => {
@@ -121,15 +147,42 @@ if (!configCheck.configured) {
 }
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Backend server running on port ${PORT}`);
+const server = app.listen(PORT, () => {
+  console.log(`Backend server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 API available at: http://localhost:${PORT}/api`);
   console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`🔐 Security: Authentication & authorization enabled`);
+  console.log(`📊 Audit logging: ${process.env.ENABLE_AUDIT_LOGGING !== 'false' ? 'Enabled' : 'Disabled'}`);
   
   if (process.env.NODE_ENV === 'development') {
     console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
   }
+  
+  console.log(`\n📖 API Documentation:`);
+  console.log(`   Public:  POST /api/auth/login, POST /api/auth/verify`);
+  console.log(`   User:    POST /api/user/extract/*, GET /api/user/categories/*`);
+  console.log(`   Admin:   /api/admin/* (requires ADMIN role)`);
+  console.log(`\n⚠️  Note: Legacy routes /api/extract/*, /api/vlm/* require authentication`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('🔄 SIGTERM received, shutting down gracefully...');
+  await flushAuditLogsOnShutdown();
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', async () => {
+  console.log('\n🔄 SIGINT received, shutting down gracefully...');
+  await flushAuditLogsOnShutdown();
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
 });
 
 export default app;

@@ -1,5 +1,5 @@
 // ============================================
-// 🎯 FASHION HIERARCHY DATABASE SCHEMA
+// FASHION HIERARCHY DATABASE SCHEMA
 // ============================================
 // This schema manages the complete fashion product hierarchy:
 // Department → Sub-Department → Category → Attributes
@@ -83,6 +83,9 @@ model Category {
   merchandiseCode String?               @map("merchandise_code") @db.VarChar(50)
   merchandiseDesc String?               @map("merchandise_desc") @db.VarChar(200)
   fabricDivision  String?               @map("fabric_division") @db.VarChar(50)
+  
+  // Garment classification for prompt optimization
+  garmentType     GarmentType           @default(UPPER) @map("garment_type")
   
   displayOrder    Int                   @default(0) @map("display_order")
   isActive        Boolean               @default(true) @map("is_active")
@@ -301,6 +304,7 @@ model User {
   // Relations
   extractionJobs  ExtractionJob[]
   verifications   ExtractionResult[]  @relation("UserVerifications")
+  apiKeys         ApiKey[]
   
   // Metadata
   createdAt       DateTime            @default(now()) @map("created_at")
@@ -314,6 +318,58 @@ model User {
 // ============================================
 // AUDIT & HISTORY
 // ============================================
+
+/// Audit Log: Comprehensive audit trail for all API calls
+model AuditLog {
+  id              Int              @id @default(autoincrement())
+  userId          Int?             @map("user_id")
+  action          String           @db.VarChar(50)    // READ, CREATE, UPDATE, DELETE
+  resource        String           @db.VarChar(100)   // departments, categories, extract, etc.
+  resourceId      String?          @map("resource_id") @db.VarChar(100)
+  method          String           @db.VarChar(10)    // GET, POST, PUT, DELETE
+  path            String           @db.VarChar(500)
+  statusCode      Int              @map("status_code")
+  ip              String           @db.VarChar(45)
+  userAgent       String?          @map("user_agent") @db.Text
+  requestBody     Json?            @map("request_body")
+  responseBody    Json?            @map("response_body")
+  duration        Int              // milliseconds
+  errorMessage    String?          @map("error_message") @db.Text
+  
+  // Metadata
+  timestamp       DateTime         @default(now())
+  
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([timestamp])
+  @@index([statusCode])
+  @@map("audit_logs")
+}
+
+/// API Key: For programmatic access and integrations
+model ApiKey {
+  id              Int              @id @default(autoincrement())
+  userId          Int              @map("user_id")
+  name            String           @db.VarChar(100)
+  key             String           @unique @db.VarChar(255)
+  permissions     Json             // Array of allowed endpoints/resources
+  isActive        Boolean          @default(true) @map("is_active")
+  lastUsed        DateTime?        @map("last_used")
+  expiresAt       DateTime?        @map("expires_at")
+  
+  // Relations
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Metadata
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  
+  @@index([userId])
+  @@index([key])
+  @@index([isActive])
+  @@map("api_keys")
+}
 
 /// Change History: Track all changes for audit trail
 model ChangeHistory {
@@ -368,4 +424,12 @@ enum UserRole {
   USER
   
   @@map("user_role")
+}
+
+enum GarmentType {
+  UPPER        // Shirts, T-shirts, Tops, Jackets, Sweaters
+  LOWER        // Pants, Jeans, Shorts, Skirts, Leggings
+  ALL_IN_ONE   // Dresses, Jumpsuits, Rompers, Full Sets
+  
+  @@map("garment_type")
 }

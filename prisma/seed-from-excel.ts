@@ -48,7 +48,7 @@ interface ParsedData {
 }
 
 async function main() {
-  console.log('🚀 Starting Excel Import to Database\n');
+  console.log('Starting Excel Import to Database\n');
 
   try {
     // Step 1: Run Python parser to generate JSON file

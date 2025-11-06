@@ -71,12 +71,12 @@ try {
     
     Write-Host "   ⏱️  Second request took: $($elapsed2.TotalMilliseconds)ms" -ForegroundColor White
     Write-Host "   📋 Cached: $($result2.metadata.cached)" -ForegroundColor $(if($result2.metadata.cached) { "Green" } else { "Red" })
-    Write-Host "   🎯 Cache Hit: $($result2.metadata.cacheHit)" -ForegroundColor $(if($result2.metadata.cacheHit) { "Green" } else { "Red" })
+    Write-Host "   Cache Hit: $($result2.metadata.cacheHit)" -ForegroundColor $(if($result2.metadata.cacheHit) { "Green" } else { "Red" })
     
     # Calculate improvement
     if ($result2.metadata.cached) {
         $improvement = [math]::Round((($elapsed1.TotalMilliseconds - $elapsed2.TotalMilliseconds) / $elapsed1.TotalMilliseconds) * 100, 1)
-        Write-Host "`n   ⚡ Speed improvement: $improvement% faster!" -ForegroundColor Green
+        Write-Host "`n    Speed improvement: $improvement% faster!" -ForegroundColor Green
     }
     
 } catch {

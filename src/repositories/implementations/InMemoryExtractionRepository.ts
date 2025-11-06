@@ -1,4 +1,4 @@
-// 🚀 In-memory implementation for current IndexedDB compatibility
+// In-memory implementation for current IndexedDB compatibility
 // 📝 Easy migration path to Prisma later
 
 import { 
@@ -174,7 +174,7 @@ export class InMemoryExtractionRepository implements IExtractionRepository {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  // 🚀 MIGRATION HELPER: Export data for Prisma migration
+  // MIGRATION HELPER: Export data for Prisma migration
   exportData() {
     return {
       jobs: Array.from(this.jobs.values()),
@@ -183,7 +183,7 @@ export class InMemoryExtractionRepository implements IExtractionRepository {
     };
   }
 
-  // 🚀 MIGRATION HELPER: Import data from database
+  // MIGRATION HELPER: Import data from database
   importData(data: { jobs: ExtractionJob[], tokenUsage: TokenUsage[], queueOrder: string[] }) {
     this.jobs.clear();
     data.jobs.forEach(job => this.jobs.set(job.id, job));

@@ -33,16 +33,16 @@ export class VLMService {
   }
 
   /**
-   * 🎯 ENHANCED EXTRACTION with Multi-VLM Pipeline
+   * ENHANCED EXTRACTION with Multi-VLM Pipeline
    */
   async extractFashionAttributes(
     request: FashionExtractionRequest
   ): Promise<EnhancedExtractionResult> {
     const startTime = Date.now();
     
-    console.log(`\n🚀 ========== VLM EXTRACTION STARTED ==========`);
+    console.log(`\n========== VLM EXTRACTION STARTED ==========`);
     console.log(`📊 Schema Items: ${request.schema.length}, Discovery: ${request.discoveryMode}`);
-    console.log(`🎯 Category: ${request.categoryName || 'Unknown'}`);
+    console.log(`Category: ${request.categoryName || 'Unknown'}`);
     console.log(`🏷️ Department: ${request.department || 'Not specified'} / ${request.subDepartment || 'Not specified'}`);
     console.log(`🔧 Available Providers: ${Array.from(this.providers.keys()).join(', ')}`);
     console.log(`⛓️  Fallback Chain: ${this.fallbackChain.join(' → ')}`);
@@ -63,7 +63,7 @@ export class VLMService {
       
       console.log(`\n✅ ========== VLM EXTRACTION COMPLETE ==========`);
       console.log(`⏱️  Total Processing Time: ${processingTime}ms`);
-      console.log(`🎯 Final Model Used: ${finalResult.modelUsed}`);
+      console.log(`Final Model Used: ${finalResult.modelUsed}`);
       console.log(`📈 Final Confidence: ${finalResult.confidence}%`);
       console.log(`🔍 Discoveries Found: ${finalResult.discoveries?.length || 0}`);
       console.log(`💰 Total Tokens Used: ${finalResult.tokensUsed || 0}`);
@@ -108,7 +108,7 @@ export class VLMService {
     // Focus on fashion-specific attributes first
     const fashionSchema = this.filterFashionCoreAttributes(request.schema);
     
-    console.log('🎯 [MODEL: Fashion-CLIP] Starting fashion-specific extraction');
+    console.log('[MODEL: Fashion-CLIP] Starting fashion-specific extraction');
     console.log('📋 Fashion-CLIP Processing Details:', {
       provider: 'fashion-clip',
       originalAttributes: request.schema.length,
@@ -162,7 +162,7 @@ export class VLMService {
     }
 
     const providerId = detailProvider === this.providers.get('openai-gpt4v') ? 'openai-gpt4v' : 'huggingface-llava';
-    console.log(`🎯 [MODEL: ${providerId.toUpperCase()}] Starting detailed analysis`);
+    console.log(`[MODEL: ${providerId.toUpperCase()}] Starting detailed analysis`);
     console.log('📋 Detailed Analysis Processing:', {
       provider: providerId,
       missingAttributes: missingAttributes.length,
@@ -219,7 +219,7 @@ export class VLMService {
     }
 
     const providerId = discoveryProvider === this.providers.get('openai-gpt4v') ? 'openai-gpt4v' : 'huggingface-llava';
-    console.log(`🎯 [MODEL: ${providerId.toUpperCase()}] Starting discovery analysis`);
+    console.log(`[MODEL: ${providerId.toUpperCase()}] Starting discovery analysis`);
     console.log('📋 Discovery Processing:', {
       provider: providerId,
       existingAttributes: Object.keys(baseResult.attributes).length,
@@ -267,7 +267,7 @@ export class VLMService {
       }
 
       try {
-        console.log(`🎯 [FALLBACK: ${providerId.toUpperCase()}] Attempting emergency extraction`);
+        console.log(`[FALLBACK: ${providerId.toUpperCase()}] Attempting emergency extraction`);
         const startTime = Date.now();
         const result = await provider.extractAttributes(request);
         const processingTime = Date.now() - startTime;
@@ -286,7 +286,7 @@ export class VLMService {
   }
 
   /**
-   * 🎯 Helper Methods
+   * Helper Methods
    */
   private filterFashionCoreAttributes(schema: SchemaItem[]): SchemaItem[] {
     const fashionCoreKeys = [

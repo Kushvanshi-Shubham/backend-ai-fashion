@@ -1,4 +1,5 @@
 import { SchemaItem, AttributeData, EnhancedExtractionResult, DiscoveredAttribute, DiscoveryStats } from './extraction';
+import { GarmentType } from '../generated/prisma';
 
 // VLM Provider Interface
 export interface VLMProvider {
@@ -30,6 +31,7 @@ export interface FashionExtractionRequest {
   
   // Fashion-specific parameters
   department?: 'mens' | 'ladies' | 'kids';
+  garmentType?: GarmentType; // NEW: UPPER, LOWER, or ALL_IN_ONE for specialized prompts
   subDepartment?: 'tops' | 'bottoms' | 'accessories' | 'footwear';
   season?: 'spring' | 'summer' | 'fall' | 'winter';
   occasion?: 'casual' | 'formal' | 'sport' | 'party';

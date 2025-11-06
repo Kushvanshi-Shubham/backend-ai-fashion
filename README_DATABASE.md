@@ -1,4 +1,4 @@
-# 🎯 **DATABASE SETUP - COMPLETE!**
+# **DATABASE SETUP - COMPLETE!**
 
 ## ✅ **What Was Just Created**
 
@@ -18,7 +18,7 @@ backend-ai-fashion/
 
 ---
 
-## 🚀 **Quick Start (Choose One Path)**
+## **Quick Start (Choose One Path)**
 
 ### **Path A: Supabase (Recommended - 5 minutes)** ⭐
 
@@ -148,7 +148,7 @@ import { MASTER_ATTRIBUTES } from '../../ai-fashion-extractor/src/constants/cate
 
 ---
 
-## 🎯 **Next Steps (After Database Setup)**
+## **Next Steps (After Database Setup)**
 
 ### **1. Test Connection (1 minute)**
 ```powershell
@@ -245,7 +245,7 @@ You now have:
 
 ---
 
-## 🚀 **Ready to Continue?**
+## **Ready to Continue?**
 
 **Next Phase: Admin APIs + UI**
 

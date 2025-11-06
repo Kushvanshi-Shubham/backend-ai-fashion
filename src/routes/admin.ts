@@ -1,5 +1,5 @@
 /**
- * 🎯 Admin Routes - Complete Hierarchy Management
+ * Admin Routes - Complete Hierarchy Management
  */
 
 import { Router } from 'express';

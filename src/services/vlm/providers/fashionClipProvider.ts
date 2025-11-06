@@ -63,7 +63,7 @@ export class FashionCLIPProvider implements VLMProvider {
   }
 
   /**
-   * 🎯 Fashion-specific classification using CLIP
+   * Fashion-specific classification using CLIP
    */
   private async performFashionClassification(request: FashionExtractionRequest): Promise<AttributeData> {
     const attributes: AttributeData = {};
@@ -239,7 +239,7 @@ export class FashionCLIPProvider implements VLMProvider {
   }
 
   /**
-   * 🤖 Perform CLIP zero-shot classification
+   *  Perform CLIP zero-shot classification
    */
   private async performCLIPClassification(image: string, candidates: string[]): Promise<{label: string, score: number}> {
     if (!this.config.apiKey) {
@@ -283,7 +283,7 @@ export class FashionCLIPProvider implements VLMProvider {
   }
 
   /**
-   * 🎯 Map CLIP result to schema value
+   * Map CLIP result to schema value
    */
   private mapToSchemaValue(clipLabel: string, schemaItem: any): string | null {
     // If we have allowed values, try to match

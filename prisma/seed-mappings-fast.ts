@@ -1,5 +1,5 @@
 /**
- * ⚡ ULTRA-FAST Seed Script - Category-Attribute Mappings
+ *  ULTRA-FAST Seed Script - Category-Attribute Mappings
  * 
  * Optimizations:
  * - Loads all categories and attributes into memory ONCE
@@ -19,28 +19,28 @@ const categoryDefinitionsPath = path.join(FRONTEND_ROOT, 'categoryDefinitions.ts
 const { CATEGORY_DEFINITIONS } = require(categoryDefinitionsPath);
 
 console.log(`📂 Loaded ${CATEGORY_DEFINITIONS.length} category definitions`);
-console.log(`🚀 Starting ULTRA-FAST Category-Attribute Mappings Import...\n`);
+console.log(`Starting ULTRA-FAST Category-Attribute Mappings Import...\n`);
 
 async function seedCategoryAttributeMappingsFast() {
   const startTime = Date.now();
 
-  // ⚡ STEP 1: Load ALL categories and attributes into memory (ONE query each)
-  console.log('⚡ Step 1: Loading all categories...');
+  //  STEP 1: Load ALL categories and attributes into memory (ONE query each)
+  console.log(' Step 1: Loading all categories...');
   const allCategories = await prisma.category.findMany({
     select: { id: true, code: true }
   });
   const categoryMap = new Map(allCategories.map(c => [c.code, c.id]));
   console.log(`   ✅ Loaded ${allCategories.length} categories`);
 
-  console.log('⚡ Step 2: Loading all attributes...');
+  console.log(' Step 2: Loading all attributes...');
   const allAttributes = await prisma.masterAttribute.findMany({
     select: { id: true, key: true }
   });
   const attributeMap = new Map(allAttributes.map(a => [a.key, a.id]));
   console.log(`   ✅ Loaded ${allAttributes.length} attributes`);
 
-  // ⚡ STEP 3: Load existing mappings to avoid duplicates
-  console.log('⚡ Step 3: Loading existing mappings...');
+  //  STEP 3: Load existing mappings to avoid duplicates
+  console.log(' Step 3: Loading existing mappings...');
   const existingMappings = await prisma.categoryAttribute.findMany({
     select: { categoryId: true, attributeId: true }
   });
@@ -49,8 +49,8 @@ async function seedCategoryAttributeMappingsFast() {
   );
   console.log(`   ✅ Found ${existingMappings.length} existing mappings\n`);
 
-  // ⚡ STEP 4: Build mappings in memory
-  console.log('⚡ Step 4: Building mappings in memory...');
+  //  STEP 4: Build mappings in memory
+  console.log(' Step 4: Building mappings in memory...');
   const mappingsToCreate: any[] = [];
   let totalProcessed = 0;
   let skippedMissing = 0;
@@ -94,11 +94,11 @@ async function seedCategoryAttributeMappingsFast() {
 
   console.log(`   ✅ Built ${mappingsToCreate.length} new mappings to insert\n`);
 
-  // ⚡ STEP 5: Batch insert (100 at a time for safety)
+  //  STEP 5: Batch insert (100 at a time for safety)
   if (mappingsToCreate.length === 0) {
     console.log('✅ No new mappings to insert. Database is up to date!\n');
   } else {
-    console.log(`⚡ Step 5: Inserting ${mappingsToCreate.length} mappings in batches...`);
+    console.log(` Step 5: Inserting ${mappingsToCreate.length} mappings in batches...`);
     const BATCH_SIZE = 100;
     let inserted = 0;
 
@@ -129,7 +129,7 @@ async function seedCategoryAttributeMappingsFast() {
   console.log(`⏭️  Skipped (exists): ${skippedExisting.toLocaleString()} existing mappings`);
   console.log(`⏭️  Skipped (missing): ${skippedMissing.toLocaleString()} missing attributes`);
   console.log(`📊 Total processed:  ${totalProcessed.toLocaleString()} attributes`);
-  console.log(`⚡ Duration:         ${duration}s (${(mappingsToCreate.length / parseFloat(duration)).toFixed(0)} mappings/sec)`);
+  console.log(` Duration:         ${duration}s (${(mappingsToCreate.length / parseFloat(duration)).toFixed(0)} mappings/sec)`);
   console.log('═'.repeat(70) + '\n');
 }
 

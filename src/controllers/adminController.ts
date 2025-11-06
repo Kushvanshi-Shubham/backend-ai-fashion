@@ -1,5 +1,5 @@
 /**
- * 🎯 Admin Controller - Hierarchy Management APIs
+ * Admin Controller - Hierarchy Management APIs
  * Complete CRUD operations for managing the fashion hierarchy
  */
 

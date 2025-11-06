@@ -11,7 +11,7 @@ export class EnhancedExtractionController {
   private schemaService = new SchemaService();
 
   /**
-   * 🚀 Enhanced Multi-VLM Fashion Extraction from Upload
+   * Enhanced Multi-VLM Fashion Extraction from Upload
    */
   extractFromUploadVLM = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -63,7 +63,7 @@ export class EnhancedExtractionController {
       // Convert image to base64
       const base64Image = await ImageProcessor.processImageToBase64(req.file);
 
-      console.log(`🚀 Enhanced VLM Extraction Started - Category: ${categoryName}, Schema: ${parsedSchema.length} attrs`);
+      console.log(`Enhanced VLM Extraction Started - Category: ${categoryName}, Schema: ${parsedSchema.length} attrs`);
 
       // Create enhanced fashion extraction request
       const vlmRequest: FashionExtractionRequest = {
@@ -101,7 +101,7 @@ export class EnhancedExtractionController {
   };
 
   /**
-   * 🎯 Enhanced Multi-VLM Fashion Extraction from Base64
+   * Enhanced Multi-VLM Fashion Extraction from Base64
    */
   extractFromBase64VLM = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -141,7 +141,7 @@ export class EnhancedExtractionController {
         return;
       }
 
-      console.log(`🎯 Enhanced Base64 VLM Extraction - Discovery: ${discoveryMode}, Schema: ${schema.length} attrs, Force Refresh: ${forceRefresh}`);
+      console.log(`Enhanced Base64 VLM Extraction - Discovery: ${discoveryMode}, Schema: ${schema.length} attrs, Force Refresh: ${forceRefresh}`);
 
       // � CACHING DISABLED - Always fetch fresh results
       const shouldUseCache = false; // Disabled caching
@@ -333,7 +333,7 @@ export class EnhancedExtractionController {
   }
 
   /**
-   * 🎯 Enhanced Category-Based Extraction (Database-Driven Schema)
+   * Enhanced Category-Based Extraction (Database-Driven Schema)
    * Loads schema from database based on category code
    */
   extractFromCategoryCode = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -369,7 +369,7 @@ export class EnhancedExtractionController {
         return;
       }
 
-      console.log(`🎯 Category-Based Extraction Started - Code: ${categoryCode}`);
+      console.log(`Category-Based Extraction Started - Code: ${categoryCode}`);
 
       // Load schema from database
       const { category, schema, stats } = await this.schemaService.getCategorySchema(categoryCode);
@@ -377,7 +377,7 @@ export class EnhancedExtractionController {
       console.log(`📊 Category: ${category.name} (${category.department.name} → ${category.subDepartment.name})`);
       console.log(`📋 Schema: ${stats.totalAttributes} attributes (${stats.aiExtractableCount} AI-extractable, ${stats.requiredCount} required)`);
 
-      // Create enhanced fashion extraction request
+      // Create enhanced fashion extraction request with garment type
       const vlmRequest: FashionExtractionRequest = {
         image,
         schema,
@@ -385,6 +385,7 @@ export class EnhancedExtractionController {
         customPrompt,
         discoveryMode: discoveryMode === 'true' || discoveryMode === true || false,
         department: category.department.name.toLowerCase() as any,
+        garmentType: category.garmentType, // NEW: For specialized prompts
         subDepartment: category.subDepartment.code as any
       };
 

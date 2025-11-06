@@ -1,5 +1,5 @@
 # ============================================
-# 🚀 DATABASE QUICK SETUP SCRIPT
+# DATABASE QUICK SETUP SCRIPT
 # ============================================
 # Run this script after setting up your DATABASE_URL
 # 
@@ -12,7 +12,7 @@
 # ============================================
 
 Write-Host "`n"
-Write-Host "🚀 AI Fashion Extractor - Database Setup" -ForegroundColor Cyan
+Write-Host "AI Fashion Extractor - Database Setup" -ForegroundColor Cyan
 Write-Host "=========================================`n" -ForegroundColor Cyan
 
 # Check if DATABASE_URL is set

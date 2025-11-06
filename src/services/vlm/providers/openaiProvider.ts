@@ -1,6 +1,7 @@
 import { VLMProvider, FashionExtractionRequest, OpenAIVLMConfig, VLMResult } from '../../../types/vlm';
 import { EnhancedExtractionResult, AttributeData } from '../../../types/extraction';
 import { BaseApiService } from '../../baseApi';
+import { promptBuilder } from '../prompts';
 
 export class OpenAIVLMProvider extends BaseApiService implements VLMProvider {
   public readonly name = 'OpenAI GPT-4 Vision';
@@ -20,7 +21,7 @@ export class OpenAIVLMProvider extends BaseApiService implements VLMProvider {
 
   async extractAttributes(request: FashionExtractionRequest): Promise<EnhancedExtractionResult> {
     const startTime = Date.now();
-    console.log(`🤖 [OpenAI GPT-4V] Starting extraction with ${request.schema.length} attributes`);
+    console.log(` [OpenAI GPT-4V] Starting extraction with ${request.schema.length} attributes`);
     console.log(`🔧 OpenAI Config: Model=${this.config.model}, MaxTokens=${this.config.maxTokens}, Detail=${this.config.detail}`);
     
     try {
@@ -87,8 +88,14 @@ export class OpenAIVLMProvider extends BaseApiService implements VLMProvider {
   }
 
   private buildPrompt(request: FashionExtractionRequest): string {
-    const { schema, categoryName, mode, department, subDepartment } = request;
+    const { schema, categoryName, mode, department, subDepartment, garmentType } = request;
     
+    // Use specialized prompts if department + garmentType available
+    if (department && garmentType) {
+      return this.buildSpecializedPrompt(request);
+    }
+    
+    // Fallback to generic prompt
     const basePrompt = `You are an expert fashion AI analyst. Analyze this clothing image and extract attributes with precision.`;
     
     const categoryContext = categoryName 
@@ -117,7 +124,7 @@ ${schemaDefinition}
 
 ${modeInstructions}
 
-🎯 MANDATORY EXTRACTION GUIDELINES:
+MANDATORY EXTRACTION GUIDELINES:
 
 FOR EVERY ATTRIBUTE:
 • COLOR: Describe exact shade visible (White, Grey, Blue, Black, etc.)
@@ -164,6 +171,79 @@ JSON RESPONSE FORMAT:
 
 ⚠️ IMPORTANT: Extract ALL attributes. If garment is visible, analyze it completely!
 - Make educated guesses for non-visible attributes with lower confidence`;
+  }
+
+  /**
+   * Build specialized prompt using promptBuilder
+   */
+  private buildSpecializedPrompt(request: FashionExtractionRequest): string {
+    const { department, garmentType, schema, categoryName, mode } = request;
+    
+    if (!department || !garmentType) {
+      throw new Error('Department and garmentType required for specialized prompt');
+    }
+    
+    // Get specialized prompt context
+    const promptContext = promptBuilder.buildSpecializedPrompt({
+      department: department.toUpperCase() as 'MENS' | 'LADIES' | 'KIDS',
+      garmentType,
+      schema,
+      categoryName: categoryName || '',
+      mode
+    });
+    
+    // Filter and prioritize schema based on garment type
+    const relevantSchema = promptBuilder.filterSchemaByRelevance(schema, promptContext.skipAttributes);
+    const prioritizedSchema = promptBuilder.prioritizeSchema(relevantSchema, promptContext.focusAreas);
+    
+    // Build optimized schema definition
+    const schemaDefinition = prioritizedSchema.map(item => {
+      const allowedValues = item.allowedValues?.length
+        ? ` (allowed: ${item.allowedValues.map(av => typeof av === 'string' ? av : av.shortForm).slice(0, 5).join(', ')}${item.allowedValues.length > 5 ? '...' : ''})`
+        : '';
+      return `- ${item.key}: ${item.label}${allowedValues}`;
+    }).join('\n');
+    
+    // Combine into specialized prompt
+    return `${promptContext.systemPrompt}
+
+CATEGORY: ${categoryName} (${department}/${garmentType})
+
+${promptContext.attributeInstructions}
+
+📋 EXTRACT THESE ${prioritizedSchema.length} ATTRIBUTES:
+${schemaDefinition}
+
+STEP 1: READ TAG/BOARD (if visible)
+Extract metadata: Vendor Name, Design Number, Rate/Price, PPT Number, GSM
+
+STEP 2: ANALYZE GARMENT
+Focus areas: ${promptContext.focusAreas.join(', ')}
+
+CONFIDENCE GUIDELINES:
+• 90-100%: Clearly visible or on tag
+• 75-89%: Strong visual inference  
+• 60-74%: Educated guess from context
+• Below 60%: Only if truly uncertain
+
+CRITICAL: Return valid JSON only:
+{
+  "metadata": {
+    "vendorName": "from tag" or null,
+    "designNumber": "from tag" or null,
+    "rate": "from tag" or null,
+    "pptNumber": "from tag" or null,
+    "gsm": "from tag" or null
+  },
+  "attributes": {
+    "attribute_key": {
+      "rawValue": "exact observation",
+      "schemaValue": "normalized value",
+      "visualConfidence": 85,
+      "reasoning": "brief explanation"
+    }
+  }
+}`;
   }
 
   private getModeSpecificInstructions(mode: string): string {

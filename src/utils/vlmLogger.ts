@@ -41,12 +41,12 @@ export class VLMLogger {
   }
 
   /**
-   * 🚀 Log VLM pipeline start
+   * Log VLM pipeline start
    */
   static logStart(message: string, context?: VLMLogContext): void {
     const timestamp = this.formatTimestamp();
     const contextStr = this.formatContext(context);
-    console.log(`[${timestamp}] 🚀 ${message}${contextStr}`);
+    console.log(`[${timestamp}] ${message}${contextStr}`);
   }
 
   /**
@@ -130,12 +130,12 @@ export class VLMLogger {
   }
 
   /**
-   * 🎯 Log model-specific operations
+   * Log model-specific operations
    */
   static logModelOperation(model: string, operation: string, details?: any): void {
     const timestamp = this.formatTimestamp();
     const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
-    console.log(`[${timestamp}] 🎯 [${model.toUpperCase()}] ${operation}${detailsStr}`);
+    console.log(`[${timestamp}] [${model.toUpperCase()}] ${operation}${detailsStr}`);
   }
 
   /**

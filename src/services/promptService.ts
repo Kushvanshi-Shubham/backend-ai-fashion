@@ -1,7 +1,7 @@
 import type { SchemaItem, AllowedValue } from '../types/extraction';
 
 export class PromptService {
-  // 🚀 NEW: Token-optimized schema-driven prompt generation
+  // NEW: Token-optimized schema-driven prompt generation
   generateOptimizedPrompt(
     schema: SchemaItem[], 
     categoryName?: string, 
@@ -222,7 +222,7 @@ Focus on commercially valuable attributes that fashion professionals would find 
     return contexts[categoryName] || 'Analyze all visible fashion attributes systematically.';
   }
 
-  // 🚀 TOKEN OPTIMIZATION METHODS
+  // TOKEN OPTIMIZATION METHODS
 
   private calculateTokenBudget(schemaLength: number): 'minimal' | 'standard' | 'extended' {
     if (schemaLength <= 5) return 'minimal';    // ~1500 tokens
