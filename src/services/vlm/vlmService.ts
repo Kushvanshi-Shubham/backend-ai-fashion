@@ -1,23 +1,30 @@
 import { VLMProvider, VLMResult } from '../../types/vlm';
 import { SchemaItem, AttributeData, EnhancedExtractionResult } from '../../types/extraction';
 import { OpenAIVLMProvider } from './providers/openaiProvider';
+import { ClaudeVLMProvider } from './providers/claudeProvider';
+import { GoogleVisionProvider } from './providers/googleVisionProvider';
 import { HuggingFaceVLMProvider } from './providers/huggingfaceProvider';
 import { OllamaVLMProvider } from './providers/ollamaProvider';
 import { FashionCLIPProvider } from './providers/fashionClipProvider';
 import { FashionExtractionRequest } from '../../types/vlm';
+import { MultiModelFusionService } from './MultiModelFusionService';
 
 export class VLMService {
   private providers: Map<string, VLMProvider> = new Map();
   private fallbackChain: string[] = [];
+  private fusionService: MultiModelFusionService;
 
   constructor() {
     this.initializeProviders();
     this.setupFallbackChain();
+    this.fusionService = new MultiModelFusionService();
   }
 
   private initializeProviders(): void {
     // Primary providers for different use cases
     this.providers.set('openai-gpt4v', new OpenAIVLMProvider());
+    this.providers.set('claude-sonnet', new ClaudeVLMProvider());
+    this.providers.set('google-gemini', new GoogleVisionProvider());
     this.providers.set('huggingface-llava', new HuggingFaceVLMProvider());
     this.providers.set('ollama-llava', new OllamaVLMProvider());
     this.providers.set('fashion-clip', new FashionCLIPProvider());
@@ -25,18 +32,28 @@ export class VLMService {
 
   private setupFallbackChain(): void {
     this.fallbackChain = [
-      'openai-gpt4v',      // Most reliable - use for real testing
-      'huggingface-llava', // Cloud backup 
-      'ollama-llava',      // Local (optional - will fail if not installed)
+      'openai-gpt4v',      // Most reliable primary
+      'claude-sonnet',     // High quality alternative
+      'google-gemini',     // Fast and cost-effective
+      'huggingface-llava', // Cloud backup
+      'ollama-llava',      // Local (optional)
       'fashion-clip'       // Disabled for now
     ];
   }
 
   /**
    * ENHANCED EXTRACTION with Multi-VLM Pipeline
+   * Supports two modes:
+   * 1. FALLBACK MODE (default): Use one model, fallback to others if it fails
+   * 2. FUSION MODE: Use multiple models and combine their results
    */
   async extractFashionAttributes(
-    request: FashionExtractionRequest
+    request: FashionExtractionRequest,
+    options?: {
+      useFusion?: boolean;
+      fusionMode?: 'voting' | 'confidence-weighted' | 'best-only';
+      fusionModels?: string[]; // Which models to use for fusion
+    }
   ): Promise<EnhancedExtractionResult> {
     const startTime = Date.now();
     
@@ -45,7 +62,18 @@ export class VLMService {
     console.log(`Category: ${request.categoryName || 'Unknown'}`);
     console.log(`🏷️ Department: ${request.department || 'Not specified'} / ${request.subDepartment || 'Not specified'}`);
     console.log(`🔧 Available Providers: ${Array.from(this.providers.keys()).join(', ')}`);
+    
+    // Check if fusion mode is enabled
+    if (options?.useFusion) {
+      console.log(`\n🔀 FUSION MODE ENABLED`);
+      console.log(`   Fusion Strategy: ${options.fusionMode || 'confidence-weighted'}`);
+      console.log(`   Models: ${options.fusionModels?.join(', ') || 'auto-select'}`);
+      
+      return await this.extractWithMultiModelFusion(request, options);
+    }
+    
     console.log(`⛓️  Fallback Chain: ${this.fallbackChain.join(' → ')}`);
+
 
     try {
       // Stage 1: Fast Fashion-Specific Detection
@@ -154,14 +182,26 @@ export class VLMService {
 
     console.log(`🔍 Detailed Analysis needed for ${missingAttributes.length} attributes`);
 
-    // Use OpenAI GPT-4V first (most reliable), then HuggingFace as backup
-    const detailProvider = this.providers.get('openai-gpt4v') || this.providers.get('huggingface-llava');
+    // Use multi-model approach: OpenAI, Claude, or Google Vision
+    let detailProvider: VLMProvider | undefined;
+    let providerId = '';
+    
+    // Try providers in order of reliability
+    const providerPriority = ['openai-gpt4v', 'claude-sonnet', 'google-gemini', 'huggingface-llava'];
+    for (const pid of providerPriority) {
+      const provider = this.providers.get(pid);
+      if (provider && await provider.isHealthy()) {
+        detailProvider = provider;
+        providerId = pid;
+        break;
+      }
+    }
+    
     if (!detailProvider) {
       console.log('❌ No detailed analysis provider available, returning Stage 1 results');
       return fashionResult as EnhancedExtractionResult;
     }
 
-    const providerId = detailProvider === this.providers.get('openai-gpt4v') ? 'openai-gpt4v' : 'huggingface-llava';
     console.log(`[MODEL: ${providerId.toUpperCase()}] Starting detailed analysis`);
     console.log('📋 Detailed Analysis Processing:', {
       provider: providerId,
@@ -307,6 +347,72 @@ export class VLMService {
       const attr = attributes[item.key];
       return !attr || attr.visualConfidence < 70; // Low confidence threshold
     });
+  }
+
+  /**
+   * 🔀 MULTI-MODEL FUSION EXTRACTION
+   * Use multiple AI models and combine their results for better accuracy
+   */
+  private async extractWithMultiModelFusion(
+    request: FashionExtractionRequest,
+    options: {
+      useFusion?: boolean;
+      fusionMode?: 'voting' | 'confidence-weighted' | 'best-only';
+      fusionModels?: string[];
+    }
+  ): Promise<EnhancedExtractionResult> {
+    const startTime = Date.now();
+    
+    // Determine which models to use
+    const modelIds = options.fusionModels || ['openai-gpt4v', 'claude-sonnet', 'google-gemini'];
+    const availableProviders: { id: string; provider: VLMProvider }[] = [];
+    
+    // Check which providers are healthy
+    for (const id of modelIds) {
+      const provider = this.providers.get(id);
+      if (provider) {
+        try {
+          const isHealthy = await provider.isHealthy();
+          if (isHealthy) {
+            availableProviders.push({ id, provider });
+            console.log(`✅ ${id} is available for fusion`);
+          } else {
+            console.log(`⚠️ ${id} is not healthy, skipping`);
+          }
+        } catch (error) {
+          console.log(`❌ ${id} health check failed, skipping`);
+        }
+      }
+    }
+    
+    if (availableProviders.length === 0) {
+      console.log('❌ No providers available for fusion, falling back to single-model extraction');
+      return await this.emergencyFallback(request);
+    }
+    
+    if (availableProviders.length === 1) {
+      console.log('⚠️ Only 1 provider available, using single-model extraction');
+      const { id, provider } = availableProviders[0];
+      const result = await provider.extractAttributes(request);
+      return {
+        ...result,
+        processingTime: Date.now() - startTime,
+        modelUsed: id as any
+      };
+    }
+    
+    // Use fusion service to combine multiple model results
+    const fusionMode = options.fusionMode || 'confidence-weighted';
+    const fusedResult = await this.fusionService.extractWithFusion(
+      availableProviders,
+      request,
+      fusionMode
+    );
+    
+    return {
+      ...fusedResult,
+      processingTime: Date.now() - startTime
+    };
   }
 
   private calculateOverallConfidence(attributes: AttributeData): number {

@@ -333,9 +333,12 @@ CRITICAL: Return valid JSON only:
         
         // First check if attribute exists in normal response
         if (attributeSource[key]) {
+          const rawValue = this.normalizeNullValue(attributeSource[key].rawValue);
+          const schemaValue = this.normalizeNullValue(attributeSource[key].schemaValue);
+          
           attributes[key] = {
-            rawValue: attributeSource[key].rawValue || null,
-            schemaValue: attributeSource[key].schemaValue || null,
+            rawValue,
+            schemaValue,
             visualConfidence: attributeSource[key].visualConfidence || 0,
             isNewDiscovery: false,
             mappingConfidence: attributeSource[key].visualConfidence || 0,
@@ -379,5 +382,28 @@ CRITICAL: Return valid JSON only:
 
     if (confidenceValues.length === 0) return 0;
     return Math.round(confidenceValues.reduce((sum, conf) => sum + conf, 0) / confidenceValues.length);
+  }
+
+  /**
+   * Normalize null/missing value variations to null
+   * Handles: "no_packet", "no_placket", "not visible", "N/A", etc.
+   */
+  private normalizeNullValue(value: any): any {
+    if (value === null || value === undefined) return null;
+    if (typeof value !== 'string') return value;
+    
+    const lowerValue = value.toLowerCase().trim();
+    const nullVariants = [
+      'no_packet', 'no_placket', 'no plackets', 'no placket',
+      'not visible', 'cannot determine', 'n/a', 'na',
+      'not applicable', 'none', 'not found', 'unknown',
+      'no pocket', 'no pockets'
+    ];
+    
+    if (nullVariants.includes(lowerValue)) {
+      return null;
+    }
+    
+    return value;
   }
 }
