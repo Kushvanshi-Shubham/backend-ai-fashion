@@ -12,7 +12,7 @@ const { promisify } = require('util');
 const execAsync = promisify(exec);
 
 // Your connection strings
-const NEON_URL = process.env.NEON_DATABASE_URL || 'postgresql://neondb_owner:npg_j8GdCil3MvLo@ep-falling-bird-adlx1mid-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require';
+
 const SUPABASE_URL = process.env.SUPABASE_DATABASE_URL || 'YOUR_SUPABASE_CONNECTION_STRING';
 
 async function migrateDatabaseToSupabase() {
