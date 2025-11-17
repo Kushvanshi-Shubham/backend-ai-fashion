@@ -1,18 +1,20 @@
-import { VLMProvider, VLMResult } from '../../types/vlm';
+
 import { SchemaItem, AttributeData, EnhancedExtractionResult } from '../../types/extraction';
 import { OpenAIVLMProvider } from './providers/openaiProvider';
 import { ClaudeVLMProvider } from './providers/claudeProvider';
 import { GoogleVisionProvider } from './providers/googleVisionProvider';
-import { HuggingFaceVLMProvider } from './providers/huggingfaceProvider';
-import { OllamaVLMProvider } from './providers/ollamaProvider';
-import { FashionCLIPProvider } from './providers/fashionClipProvider';
-import { FashionExtractionRequest } from '../../types/vlm';
+// Disabled providers (deprecated endpoints or unavailable):
+// import { HuggingFaceVLMProvider } from './providers/huggingfaceProvider';
+// import { OllamaVLMProvider } from './providers/ollamaProvider';
+// import { FashionCLIPProvider } from './providers/fashionClipProvider';
+
 import { MultiModelFusionService } from './MultiModelFusionService';
+import { FashionExtractionRequest, VLMProvider } from '@/types/vlm';
 
 export class VLMService {
-  private providers: Map<string, VLMProvider> = new Map();
+  private readonly providers: Map<string, VLMProvider> = new Map();
   private fallbackChain: string[] = [];
-  private fusionService: MultiModelFusionService;
+  private readonly fusionService: MultiModelFusionService;
 
   constructor() {
     this.initializeProviders();
@@ -21,23 +23,21 @@ export class VLMService {
   }
 
   private initializeProviders(): void {
-    // Primary providers for different use cases
+    // Primary providers - only OpenAI, Claude, and Google
     this.providers.set('openai-gpt4v', new OpenAIVLMProvider());
     this.providers.set('claude-sonnet', new ClaudeVLMProvider());
     this.providers.set('google-gemini', new GoogleVisionProvider());
-    this.providers.set('huggingface-llava', new HuggingFaceVLMProvider());
-    this.providers.set('ollama-llava', new OllamaVLMProvider());
-    this.providers.set('fashion-clip', new FashionCLIPProvider());
+    // Disabled providers (deprecated endpoints or unavailable):
+    // this.providers.set('huggingface-llava', new HuggingFaceVLMProvider());
+    // this.providers.set('ollama-llava', new OllamaVLMProvider());
+    // this.providers.set('fashion-clip', new FashionCLIPProvider());
   }
 
   private setupFallbackChain(): void {
     this.fallbackChain = [
-      'openai-gpt4v',      // Most reliable primary
-      'claude-sonnet',     // High quality alternative
-      'google-gemini',     // Fast and cost-effective
-      'huggingface-llava', // Cloud backup
-      'ollama-llava',      // Local (optional)
-      'fashion-clip'       // Disabled for now
+      'openai-gpt4v',      // Most reliable primary (requires credits)
+      'claude-sonnet',     // High quality alternative (requires credits)
+      'google-gemini'      // Fast and cost-effective (free tier available)
     ];
   }
 
@@ -146,20 +146,32 @@ export class VLMService {
       processingMode: 'fashion-specialized'
     });
     
-    const result = await fashionProvider.extractAttributes({
-      ...request,
-      schema: fashionSchema,
-      mode: 'fashion-focused'
-    });
+    try {
+      const result = await fashionProvider.extractAttributes({
+        ...request,
+        schema: fashionSchema,
+        mode: 'fashion-focused'
+      });
 
-    console.log(`✅ Fashion-CLIP Complete: ${Object.keys(result.attributes).length} attributes extracted`);
-    console.log(`📊 Fashion-CLIP Performance:`, {
-      model: result.modelUsed || 'fashion-clip',
-      confidence: result.confidence,
-      tokensUsed: result.tokensUsed || 0,
-      processingTime: `${result.processingTime || 0}ms`
-    });
-    return result;
+      // Check if Fashion-CLIP actually returned useful results
+      const extractedCount = Object.values(result.attributes).filter(attr => attr !== null).length;
+      if (extractedCount === 0 || result.confidence === 0) {
+        console.log('⚠️ Fashion-CLIP returned 0% confidence or no attributes, skipping to Stage 2');
+        return { attributes: {}, confidence: 0, tokensUsed: 0 };
+      }
+
+      console.log(`✅ Fashion-CLIP Complete: ${extractedCount} attributes extracted`);
+      console.log(`📊 Fashion-CLIP Performance:`, {
+        model: result.modelUsed || 'fashion-clip',
+        confidence: result.confidence,
+        tokensUsed: result.tokensUsed || 0,
+        processingTime: `${result.processingTime || 0}ms`
+      });
+      return result;
+    } catch (error) {
+      console.warn('⚠️ Fashion-CLIP extraction failed, skipping to Stage 2:', error instanceof Error ? error.message : 'Unknown error');
+      return { attributes: {}, confidence: 0, tokensUsed: 0 };
+    }
   }
 
   /**
@@ -190,10 +202,22 @@ export class VLMService {
     const providerPriority = ['openai-gpt4v', 'claude-sonnet', 'google-gemini', 'huggingface-llava'];
     for (const pid of providerPriority) {
       const provider = this.providers.get(pid);
-      if (provider && await provider.isHealthy()) {
-        detailProvider = provider;
-        providerId = pid;
-        break;
+      if (!provider) {
+        console.log(`⚠️ Provider ${pid} not found, skipping`);
+        continue;
+      }
+      
+      try {
+        const healthy = await provider.isHealthy();
+        console.log(`🔍 Checking ${pid} health: ${healthy ? 'HEALTHY' : 'UNAVAILABLE'}`);
+        if (healthy) {
+          detailProvider = provider;
+          providerId = pid;
+          break;
+        }
+      } catch (error) {
+        console.warn(`⚠️ Health check failed for ${pid}:`, error instanceof Error ? error.message : 'Unknown error');
+        continue;
       }
     }
     
@@ -418,7 +442,7 @@ export class VLMService {
   private calculateOverallConfidence(attributes: AttributeData): number {
     const confidenceValues = Object.values(attributes)
       .filter(attr => attr !== null)
-      .map(attr => attr!.visualConfidence)
+      .map(attr => attr.visualConfidence)
       .filter(conf => conf > 0);
 
     if (confidenceValues.length === 0) return 0;

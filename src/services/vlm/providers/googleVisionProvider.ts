@@ -151,7 +151,7 @@ CRITICAL: Return valid JSON only:
     });
 
     // Extract base64 data and mime type
-    const base64Match = imageData.match(/^data:(image\/[a-z]+);base64,(.+)$/);
+    const base64Match = (/^data:(image\/[a-z]+);base64,(.+)$/).exec(imageData);
     if (!base64Match) {
       throw new Error('Invalid image data format');
     }
@@ -168,7 +168,7 @@ CRITICAL: Return valid JSON only:
       }
     ]);
 
-    const response = await result.response;
+    const response = result.response;
     const text = response.text();
     
     // Gemini API provides usageMetadata with actual token counts

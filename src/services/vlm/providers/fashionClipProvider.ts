@@ -4,14 +4,16 @@ import { EnhancedExtractionResult, AttributeData } from '../../../types/extracti
 export class FashionCLIPProvider implements VLMProvider {
   public readonly name = 'Fashion-CLIP Specialized';
   private config: FashionCLIPConfig;
+  // Runtime flag to short-circuit calls when the external API/model is unavailable
+  private providerAvailable = true;
 
   constructor(config?: Partial<FashionCLIPConfig>) {
     this.config = {
       model: 'openai/clip-vit-base-patch32',
-      baseUrl: 'https://api-inference.huggingface.co',
+      baseUrl: 'https://router.huggingface.co/hf-inference', // Updated from deprecated api-inference endpoint
       apiKey: process.env.HUGGINGFACE_API_KEY || '',
       maxTokens: 1024,
-      temperature: 0.0, // More deterministic for fashion classification
+      temperature: 0, // More deterministic for fashion classification
       timeout: 30000,
       ...config
     };
@@ -133,6 +135,13 @@ export class FashionCLIPProvider implements VLMProvider {
     categoryName?: string
   ): Promise<Record<string, any>> {
     const results: Record<string, any> = {};
+    // If provider has been marked unavailable (e.g. returned 410), skip attempting calls
+    if (!this.providerAvailable) {
+      for (const item of items) {
+        results[item.key] = null;
+      }
+      return results;
+    }
     
     // Create fashion-specific classification prompts for each item
     for (const item of items) {
@@ -265,6 +274,14 @@ export class FashionCLIPProvider implements VLMProvider {
     });
 
     if (!response.ok) {
+      // If the model or endpoint was removed (HTTP 410), mark provider unavailable to avoid
+      // repeated failing calls and allow other providers/fallbacks to run immediately.
+      if (response.status === 410) {
+        this.providerAvailable = false;
+        console.warn('⚠️ Fashion-CLIP provider marked unavailable: API returned 410 (Gone)');
+        throw new Error(`Fashion-CLIP API error: ${response.status} (model/endpoint removed or access revoked)`);
+      }
+
       throw new Error(`Fashion-CLIP API error: ${response.status}`);
     }
 
@@ -313,7 +330,7 @@ export class FashionCLIPProvider implements VLMProvider {
   private calculateConfidence(attributes: AttributeData): number {
     const confidenceValues = Object.values(attributes)
       .filter(attr => attr !== null)
-      .map(attr => attr!.visualConfidence)
+      .map(attr => attr.visualConfidence)
       .filter(conf => conf > 0);
 
     if (confidenceValues.length === 0) return 0;

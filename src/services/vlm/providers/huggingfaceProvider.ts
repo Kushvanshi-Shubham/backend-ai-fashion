@@ -8,7 +8,7 @@ export class HuggingFaceVLMProvider implements VLMProvider {
   constructor(config?: Partial<HuggingFaceVLMConfig>) {
     this.config = {
       model: 'llava-hf/llava-1.5-13b-hf',
-      baseUrl: 'https://api-inference.huggingface.co',
+      baseUrl: 'https://router.huggingface.co/hf-inference', // Updated from deprecated api-inference endpoint
       apiKey: process.env.HUGGINGFACE_API_KEY || '',
       maxTokens: 2048,
       temperature: 0.1,
@@ -77,7 +77,7 @@ export class HuggingFaceVLMProvider implements VLMProvider {
   }
 
   private buildFashionPrompt(request: FashionExtractionRequest): string {
-    const { schema, categoryName, mode } = request;
+    const { schema, categoryName } = request;
     
     const prompt = `Analyze this fashion image and extract the following attributes:
 
@@ -153,7 +153,7 @@ Format:
   private async parseResponse(content: string, schema: any[]): Promise<AttributeData> {
     try {
       // HuggingFace models might not return perfect JSON, so we need robust parsing
-      let jsonMatch = content.match(/\{[\s\S]*\}/);
+      let jsonMatch = (/\{[\s\S]*\}/).exec(content);
       
       if (!jsonMatch) {
         // Fallback: create basic structure from text analysis
@@ -235,7 +235,7 @@ Format:
   private calculateConfidence(attributes: AttributeData): number {
     const confidenceValues = Object.values(attributes)
       .filter(attr => attr !== null)
-      .map(attr => attr!.visualConfidence)
+      .map(attr => attr.visualConfidence)
       .filter(conf => conf > 0);
 
     if (confidenceValues.length === 0) return 0;

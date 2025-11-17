@@ -4,19 +4,16 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '../generated/prisma';
-
-const prisma = new PrismaClient({
-  log: [],
-  errorFormat: 'minimal',
-});
+import { prismaClient as prisma } from '../utils/prisma';
 
 const ENABLE_AUDIT_LOGGING = process.env.ENABLE_AUDIT_LOGGING !== 'false';
-const AUDIT_LOG_BATCH_SIZE = parseInt(process.env.AUDIT_LOG_BATCH_SIZE || '10');
+const AUDIT_LOG_BATCH_SIZE = Number.parseInt(process.env.AUDIT_LOG_BATCH_SIZE || '10');
 
 // In-memory batch for performance
 let auditBatch: any[] = [];
 let batchTimeout: NodeJS.Timeout | null = null;
+// Runtime flag: if the audit logs table is missing or DB disallows writes, disable further attempts
+let auditLoggingAvailable = true;
 
 interface AuditLogEntry {
   userId: number | null;
@@ -41,7 +38,7 @@ interface AuditLogEntry {
  */
 export const auditLog = (req: Request, res: Response, next: NextFunction): void => {
   // Skip if disabled
-  if (!ENABLE_AUDIT_LOGGING) {
+  if (!ENABLE_AUDIT_LOGGING || !auditLoggingAvailable) {
     next();
     return;
   }
@@ -129,7 +126,25 @@ async function flushBatch(): Promise<void> {
 
     console.log(`✅ Flushed ${batch.length} audit log entries`);
   } catch (error) {
-    console.error('❌ Failed to flush audit logs:', error);
+    // Handle database connection errors
+    const errorCode = (error as any)?.code;
+    const errorMessage = (error as any)?.message || '';
+    
+    // P2021: table doesn't exist, P1017: server connection closed, P1001: can't reach database
+    // P2024: connection pool timeout
+    if (errorCode === 'P2021' || errorMessage.includes('does not exist')) {
+      console.warn('⚠️ Audit logging disabled: audit_logs table is missing in the database.');
+      auditLoggingAvailable = false;
+    } else if (errorCode === 'P1017' || errorMessage.includes('closed the connection')) {
+      console.warn('⚠️ Database connection closed, will retry audit logging on next batch');
+      // Don't disable completely, connection might recover
+    } else if (errorCode === 'P2024' || errorMessage.includes('connection pool')) {
+      console.warn('⚠️ Connection pool timeout, will retry on next batch');
+      // Connection pool exhausted, but might recover
+    } else {
+      console.error('❌ Failed to flush audit logs:', error);
+    }
+    
     // Don't re-add to batch to avoid infinite loop
   }
 }
@@ -139,7 +154,11 @@ async function flushBatch(): Promise<void> {
  */
 export async function flushAuditLogsOnShutdown(): Promise<void> {
   console.log('🔄 Flushing remaining audit logs...');
-  await flushBatch();
+  if (auditLoggingAvailable) {
+    await flushBatch();
+  } else {
+    console.log('⚠️ Audit logging disabled; skipping flush on shutdown');
+  }
   console.log('✅ Audit logs flushed');
 }
 
@@ -166,7 +185,7 @@ function getAction(method: string): string {
  * Extract resource name from path
  */
 function getResource(path: string): string {
-  const parts = path.split('/').filter((p) => p && !p.match(/^\d+$/));
+  const parts = path.split('/').filter((p) => p && !(/^\d+$/).exec(p));
   
   // Remove 'api' from parts
   const filtered = parts.filter(p => p !== 'api');
@@ -180,7 +199,7 @@ function getResource(path: string): string {
  */
 function getResourceId(path: string): string | null {
   // Match numeric IDs or UUIDs
-  const match = path.match(/\/(\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i);
+  const match = (/\/(\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i).exec(path);
   return match ? match[1] : null;
 }
 
