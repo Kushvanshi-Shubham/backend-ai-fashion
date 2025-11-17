@@ -7,8 +7,8 @@
  * 3. Import data to Supabase
  */
 
-const { exec } = require('child_process');
-const { promisify } = require('util');
+const { exec } = require('node:child_process');
+const { promisify } = require('node:util');
 const execAsync = promisify(exec);
 
 // Your connection strings
