@@ -4,13 +4,8 @@
  */
 
 import { Request, Response } from 'express';
-import { PrismaClient } from '../generated/prisma';
 import { z } from 'zod';
-
-const prisma = new PrismaClient({
-  log: [], // Disable logging to save memory
-  errorFormat: 'minimal', // Minimal error format to save memory
-});
+import { prismaClient as prisma } from '../utils/prisma';
 
 // ═══════════════════════════════════════════════════════
 // VALIDATION SCHEMAS
